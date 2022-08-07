@@ -59,6 +59,9 @@ INPLACE_OPS_THAT_DONT_GET_GROUPED_PROPERLY = [
 # example add.Tensor, add_.Tensor, add.out
 # "similar" NativeFunctions are all expected to have an identical `signature()`,
 # But have differing SchemaKinds.
+# 将“类似的”NativeFunctions组合在一起，
+# 例如add.Tensor, add_.Tensor, add.out
+# 类似的”NativeFunctions都希望具有相同的“signature()”，但有不同的schemakind。
 def pre_group_native_functions(
     native_functions: Sequence[NativeFunction],
 ) -> Dict[FunctionSchema, Dict[SchemaKind, NativeFunction]]:
@@ -69,6 +72,14 @@ def pre_group_native_functions(
         d = pre_grouped_native_functions[f.func.signature()]
         assert f.func.kind() not in d
         d[f.func.kind()] = f
+
+    # 例子:pre_grouped_native_functions
+    # {
+    #     binop(Tensor self, Tensor other) -> Tensor : {
+    #                                                          SchemaKind.out :   对应的NativeFunction
+    #                                                          SchemaKind.functional :  对应的NativeFunction
+    # }
+    #
     return pre_grouped_native_functions
 
 
@@ -268,14 +279,9 @@ def generate_function(
     )
 
 
-# This function is responsible for adding generated NativeFunctions which don't appear
-# explicitly in the codegen.
-# You can inspect the full list of NativeFunctions yourself with the torchgen package, by running
-# torchgen.parse_native_yaml("aten/src/ATen/native/native_functions.yaml", "aten/src/ATen/native/tags.yaml")
-# (Maybe we should make a friendly API for this)
+# 此函数负责添加×生成×的NativeFunctions，这些NativeFunctions不会显式地出现在代码生成器中。
 #
-# Note: this function *mutates* its two inputs,
-# adding the new NativeFunctions / BackendMetadata to them
+# 注意:这个函数改变了它的两个输入，向它们添加了新的NativeFunctions BackendMetadata
 def add_generated_native_functions(
     rs: List[NativeFunction],
     indices: Dict[DispatchKey, Dict[OperatorName, BackendMetadata]],

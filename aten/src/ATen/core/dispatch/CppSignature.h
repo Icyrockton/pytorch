@@ -11,6 +11,7 @@ namespace impl {
 
 // A CppSignature object holds RTTI information about a C++ function signature at runtime
 // and can compare them or get a debug-printable name.
+// CppSignature对象在运行时保存有关c++函数签名的RTTI信息，并可以comapre它们或获得可调试打印的名称。
 class TORCH_API CppSignature final {
 public:
     CppSignature(const CppSignature&) = default;

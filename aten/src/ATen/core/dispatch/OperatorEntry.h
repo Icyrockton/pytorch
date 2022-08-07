@@ -33,6 +33,7 @@ namespace impl {
 // about the kernel that isn't necessary for actual dispatching (this is why
 // we don't put AnnotatedKernel in the actual DispatchTable), but is useful for
 // giving good error messages.
+// 主要是KernelFunction，加上一些debug信息
 struct AnnotatedKernel final {
   AnnotatedKernel(KernelFunction k, std::unique_ptr<FunctionSchema> s, std::string d)
     : kernel(std::move(k))
@@ -50,6 +51,7 @@ struct AnnotatedKernel final {
 
 // This data structure represents operator schema, with metadata specifying
 // where the registration of this schema occurred
+// 使用元数据(debug)指定该schema的注册发生在哪里
 struct AnnotatedSchema final {
   AnnotatedSchema(FunctionSchema s, std::string d)
     : schema(std::move(s))
@@ -59,9 +61,7 @@ struct AnnotatedSchema final {
   std::string debug;
 };
 
-// Internal data structure that records information about a specific operator.
-// It's not part of the public API; typically, users will interact with
-// OperatorHandle instead.
+// 记录特定operator的内部数据结构。它不是公共API的一部分;通常用户将与OperatorHandle交互。
 //
 // Concurrent writes to OperatorEntry are protected by the GLOBAL Dispatcher
 // lock (this is important because some methods in OperatorEntry access
@@ -94,6 +94,7 @@ public:
   // We may allocate an OperatorEntry for an operator even when we don't
   // have a schema.  When we receive the schema registration, we post
   // facto register a schema.
+  // 即使没有schema，也可以为operator分配OperatorEntry。
   //
   // NB: registerSchema/deregisterSchema are not idempotent; if you
   // attempt to register a schema when one is already present or vice
@@ -117,6 +118,8 @@ public:
   // Kernels and the computed dispatch tables for them are canonically
   // owned by OperatorEntry, but backend fallbacks are specified once
   // and apply for all operators, so they should be owned by Dispatcher.
+  // 为什么内核和回退是不对称的?这与所有权有关。
+  // 内核和它们的计算分派表通常由OperatorEntry拥有，但后端回退只指定一次，并应用于所有操作，因此它们应该由Dispatcher拥有。
   // However, the registration of a backend fallback affects the
   // state of the computed dispatch table, so when a backend fallback
   // is updated, we need to update the operator tables too.  Thus,
@@ -174,6 +177,9 @@ public:
 
   [[noreturn]] void reportError(DispatchKey dispatchKey) const;
 
+  /**
+   *    根据 dispatch key 来查找 KernelFunction
+   */
   const KernelFunction& lookup(DispatchKeySet ks) const {
     const auto idx = ks.getDispatchTableIndexForDispatchKeySet();
     if (C10_UNLIKELY(idx == -1)) {
@@ -200,8 +206,7 @@ public:
   //
   // Invariant: There are no alias keys in the passed-in dispatch key set.
   // Note [No Alias Keys in DispatchKeySet]
-  // Alias keys should be checked using `hasKernelForDispatchKey`
-  // Alias keys shouldn't go inside of a DispatchKeySet, since they can technically
+  // Alias keys should be checked using `hasKernelFdispatchKeyExtractor_eySet, since they can technically
   // have a value > 63 (causing overflow).
   bool hasKernelForAnyDispatchKey(DispatchKeySet ks) const;
   // Returns true if kernel_ has entry for a particular key.
@@ -221,17 +226,23 @@ private:
 
   // kernels_ stores all registered kernels for the corresponding dispatch key
   // and catchAllKernels_ stores the catch-all kernels.
+  // kernels_存储对应dispatch key的所有注册内核，catchAllKernels_存储捕获所有catch-all内核
   // If an operator library gets loaded that overwrites an already existing kernel,
   // both kernels will be in that list but only the newer one will be in
   // dispatchTable. If any of the kernels go away (say the library gets
   // unloaded), we remove the kernel from this list and update the
   // dispatchTable if necessary.
+  // 如果一个operator库被加载，覆盖了一个已经存在的kernel，
+  // 那么两个kernel都将在该列表中，但只有最新的一个将在dispatchTable中。
+  // 如果任何一个kernel消失了(比如库被卸载)，我们就从这个列表中删除kernel，并在必要时更新dispatchTable。
   // Kernels in the list are ordered by registration time descendingly,
   // newer registrations are before older registrations.
   // We do not combine dispatchTable and kernels into one hash map because
   // kernels is a larger data structure and accessed quite infrequently
   // while dispatchTable is accessed often and should be kept small to fit
   // into CPU caches.
+  // 我们没有将dispatchTable和kernel组合成一个哈希映射，
+  // 因为kernel是一个更大的数据结构，访问频率非常低，而dispatchTable被频繁访问，因此应该保持小的大小以适应CPU缓存。
   // Invariants:
   //  - dispatchTable[dispatch_key] == kernels_[dispatch_key].front()
   //  - dispatchTable[dispatch_key] does not exist if and only if
@@ -257,7 +268,7 @@ private:
 #else
                      std::list<AnnotatedKernel>
 #endif
-                     > kernels_;
+                     > kernels_;  /* 这是一个map,别看错了 */
 
   const AnnotatedKernel& missingKernel() const;
   const AnnotatedKernel& ambiguousAutogradOtherKernel() const;
@@ -290,7 +301,7 @@ private:
   void updateDispatchTable_(const c10::Dispatcher& dispatcher, DispatchKey dispatch_key);
   // Like above, but for ALL entries in the dispatch table.
   void updateDispatchTableFull_(const c10::Dispatcher& dispatcher);
-  // Retrieves a pointer to AnnotatedKernel at kernels_.at(dispatch_key).front().
+  // 获取一个指向AnnotatedKernel的指针  kernels_.at(dispatch_key).front().
   const AnnotatedKernel* getKernelForDispatchKey(DispatchKey dispatch_key) const;
 };
 

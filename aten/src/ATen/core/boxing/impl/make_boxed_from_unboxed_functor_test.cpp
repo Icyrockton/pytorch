@@ -40,6 +40,12 @@ struct DecrementKernel final : OperatorKernel {
   }
 };
 
+struct MyKernel : OperatorKernel {
+  int64_t operator()(const Tensor& tensor) {
+    return tensor.abs().item().toLong();
+  }
+};
+
 void expectCallsIncrement(DispatchKey dispatch_key) {
   at::AutoDispatchBelowAutograd mode;
 

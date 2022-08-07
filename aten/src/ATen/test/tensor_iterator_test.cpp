@@ -7,6 +7,19 @@
 
 using namespace at;
 
+TEST(TensorIteratorTest,my_test){
+  Tensor out;
+  auto x= at::randn({5,5},kCPU);
+  auto y = at::randn({5, 5}, kCPU);
+  at::TensorIteratorConfig config;
+  auto iter =  config.add_output(out).add_input(x).add_input(y).build();
+  at::native::cpu_kernel(iter, [](float a, float b) {
+    std::cout << a << " " << b << " "<<  a+b<<std::endl;
+    return a + b;
+  });
+}
+
+
 // An operation with a CUDA tensor and CPU scalar should keep the scalar
 // on the CPU (and lift it to a parameter).
 TEST(TensorIteratorTest, CPUScalar) {

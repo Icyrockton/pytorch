@@ -149,7 +149,7 @@ class DispatchKey(Enum):
 STRUCTURED_DISPATCH_KEYS = {DispatchKey.MPS, DispatchKey.CUDA, DispatchKey.CPU}
 UFUNC_DISPATCH_KEYS = {DispatchKey.CUDA, DispatchKey.CPU}
 
-# Set of supported dispatch keys
+# 所支持的dispatch keys
 dispatch_keys = [
     DispatchKey.CPU,
     DispatchKey.SparseCPU,
@@ -272,6 +272,9 @@ DTYPE_CLASSES["FloatingAndComplex"] = (
 # NB: if you add a new UfuncKey, you will teach torchgen.dest.ufunc how
 # to process it.  Most logic will ignore keys they don't understand, so your
 # new key will get silently ignored until you hook in logic to deal with it.
+# 表示native_functions.yaml中ufunc_inner_loop的有效条目。
+# 注意:如果你添加了一个新的UfuncKey，你将教torchgen.dest.ufunc如何处理它。
+# 大多数逻辑会忽略它们不理解的key，所以你的新键会被静默地忽略，直到你hook入逻辑来处理它。
 class UfuncKey(Enum):
     # These are low level keys that represent exactly one particular
     # instantiation of the kernel produced by codegen
@@ -311,20 +314,22 @@ ViewSchemaKind = Enum(
 # The name "native", BTW, comes from the distinction between native
 # functions and legacy TH functions.  The legacy TH functions are gone,
 # but the "native" descriptor has stuck.
+# 代码生成的基本输入是native_functions.yaml。
+# “native”这个名字，BTW，来自于原生函数和遗留TH函数之间的区别。遗留的TH函数消失了，但“native”描述符仍然存在。
 #
 # NativeFunction models a single entry in native_functions.yaml.  Its
 # fields roughly correspond to what you would see in the YAML itself,
 # but after canonicalization and parsing has occurred.
+# NativeFunction在native_functions.yaml中建模单个条目。
+# 它的字段大致对应于您在YAML本身中看到的内容，但是在进行了规范化和解析之后。
 #
 # You can see some of the overall design patterns for how we setup
 # dataclasses in this class, but we will defer a complete discussion
 # of this at FunctionSchema.
 @dataclass(frozen=True)
 class NativeFunction:
-    # The namespace for this operator. For example, if we have "at::add"
-    # then the namespace would be "at". This enables ops to be registered
-    # through the same DSL with a custom namespace. If not specified, the
-    # default namespace would be "at".
+    # 此操作符的名称空间。例如，如果我们有"at::add"，那么命名空间将是"at"。
+    # 这使得操作可以通过具有自定义名称空间的相同DSL进行注册。如果不指定，默认名称空间将是"at"。
     namespace: str
 
     # The function schema of the operator in question.  This schema
@@ -332,13 +337,15 @@ class NativeFunction:
     # (This type is quoted as we are forward referencing a type
     # defined later in the file.  I opted for this ordering of the
     # classes for expository clarity.)
+    # 所讨论的运算符的schema。这个模式已经被解析;有关其结构的更多信息，请参阅FunctionSchema
+    # 。(当我们向前引用文件中稍后定义的类型时，该类型被引用。我选择这种课程顺序是为了解释清楚。)
     func: "FunctionSchema"
 
     # Whether or not to generate mutable tensor arguments like regular
     # ones
     use_const_ref_for_mutable_tensors: bool
 
-    # Whether or not to omit automatic generation of a DeviceGuard
+    # 是否忽略DeviceGuard的自动生成
     device_guard: bool
 
     # How to emit automatic generation of device check
@@ -350,8 +357,7 @@ class NativeFunction:
     # TODO: figure out what this does
     category_override: Optional[str]
 
-    # If no variants are specified in native_functions.yaml, this is
-    # assumed to be {'function'}.
+    # 如果没有在native_functions.yaml中指定variants，这被假定为{'function'}。
     variants: Set[Variant]
 
     # Whether or not we should skip generating registrations for
@@ -363,10 +369,11 @@ class NativeFunction:
     # for this kernel.  Technically, this doesn't actually skip generating
     # the binding; instead, the binding gets generated to __dispatch_{funcname}
     # so you can make use of the normal binding if you need it.
+    # 是否跳过为该内核生成TensorMethodFunctions绑定。从技术上讲，这实际上并不跳过生成绑定;
+    # 相反，该绑定会生成__dispatch_{funcname}，这样你就可以在需要时使用普通绑定。
     manual_cpp_binding: bool
 
-    # The location in the YAML file were this native function entry was
-    # defined.  This is for conveniently reporting error messages!
+    # YAML文件中的位置是定义的函数条目所在位置。这是为了方便地报告错误消息!
     loc: "Location"
 
     # A list of operators that are expected to be auto-generated for this NativeFunction.
@@ -388,16 +395,22 @@ class NativeFunction:
     # delegate to the out function using the structured_delegate keyword.
     # Every structured kernel must have at least an out and a functional
     # variant.
+    # 这个输出函数是否是一个“结构化内核”。结构化内核的定义与普通内核略有不同;
+    # 特别是，它们的形状检查逻辑是与内核分开定义的。
+    # 只有out函数可以结构化;其他函数使用structured_delegate关键字委托给out函数。每个结构化内核必须至少有一个输出和函数变体。
     structured: bool
 
     # Whether or not this non-out function is a structured kernel, defined
     # in terms of the out kernel referenced by the string here.
+    # 这个非out函数是否为结构化内核，字符串引用out内核的定义。
     structured_delegate: Optional["OperatorName"]
 
     # Only valid for structured kernels.  Specifies alternative of what
     # to inherit from when defining the meta class for the structured
     # operator.  This will usually be TensorIteratorBase.  This also
     # changes the semantics of set_output to call the parent class.
+    # 仅对结构化内核有效。指定在为结构化操作符定义元类时继承的内容的替代。
+    # 这通常是TensorIteratorBase。这还改变了set_output的语义，以调用父类。
     structured_inherits: Optional[str]
 
     # Structured kernels can declare elements as "precomputed". These elements
@@ -406,6 +419,9 @@ class NativeFunction:
     # elements supersede. Information about the names and types of these
     # precomputed elements and how they correspond to kernel arguments is stored
     # in this member, if applicable.
+    # 结构化内核可以将元素声明为“预先计算的”。
+    # 这些元素由一个结构中的元函数返回，并传递给impl函数，以代替这些预先计算的元素所替代的某些内核参数。
+    # 关于这些预计算元素的名称和类型以及它们如何与内核参数相对应的信息(如果适用)存储在这个成员中。
     precomputed: Optional["Precompute"]
 
     # Argument names whose default  should be excluded from the C++ interface.
@@ -427,15 +443,11 @@ class NativeFunction:
     has_composite_explicit_autograd_kernel: bool
     has_composite_explicit_autograd_non_functional_kernel: bool
 
-    # Tags are used to describe semantic information about (groups of) operators,
-    # That aren't easily inferrable directly from the operator's schema.
+    # tags用于描述关于操作符的语义信息，这些信息不容易直接从操作符的schema推断出来。
     tags: Set[str]
 
-    # NB: The benefit of defining a dataclass is that we automatically get
-    # a constructor defined for all the fields we specify.  No need
-    # to explicitly write it out.
 
-    # We parse both the NativeFunction + backend-specific information about it, which it stored in a corresponding BackendIndex.
+    # 我们解析 NativeFunction +关于它的backend信息，它存储在相应的BackendIndex中。
     @staticmethod
     def from_yaml(
         ei: Dict[str, object],
@@ -446,8 +458,7 @@ class NativeFunction:
         "NativeFunction", Dict[DispatchKey, Dict["OperatorName", "BackendMetadata"]]
     ]:
         """
-        Parse a NativeFunction from a dictionary as directly parsed
-        from native_functions.yaml
+        从字典解析NativeFunction，就像直接从native_functions.yaml解析一样
         """
         e = ei.copy()
 
@@ -458,7 +469,7 @@ class NativeFunction:
             namespaced_entity=funcs, max_level=1
         )
         namespace = namespace_helper.get_cpp_namespace(default="aten")
-        func = FunctionSchema.parse(namespace_helper.entity_name)
+        func = FunctionSchema.parse(namespace_helper.entity_name)   # <----------- 解析FunctionSchema
 
         cpp_no_default_args_list = e.pop("cpp_no_default_args", [])
         assert isinstance(cpp_no_default_args_list, list)
@@ -497,7 +508,7 @@ class NativeFunction:
         ), f"not a str: {device_check_s}"
         device_check: DeviceCheckType
         if device_check_s is None:
-            device_check = DeviceCheckType.ExactSame
+            device_check = DeviceCheckType.ExactSame    # 一般都这个
         else:
             device_check = DeviceCheckType[device_check_s]
 
@@ -557,7 +568,7 @@ class NativeFunction:
 
         from torchgen.api import cpp
 
-        raw_dispatch = e.pop("dispatch", None)
+        raw_dispatch = e.pop("dispatch", None)  # 解析dispatch
         assert raw_dispatch is None or isinstance(raw_dispatch, dict), e
         dispatch: Dict[DispatchKey, BackendMetadata] = {}
         if raw_dispatch is not None:
@@ -612,7 +623,7 @@ class NativeFunction:
                 f"but got {dispatch[DispatchKey.CompositeImplicitAutograd]}.  Rename your implementation to the expected "
                 "name, then delete the dispatch table"
             )
-        elif not structured and structured_delegate is None:
+        elif not structured and structured_delegate is None:    # 如果没有写dispatch,默认情况到这里
             dispatch[DispatchKey.CompositeImplicitAutograd] = BackendMetadata(
                 cpp.name(func), structured=False, cpp_namespace=DEFAULT_KERNEL_NAMESPACE
             )
@@ -624,7 +635,7 @@ class NativeFunction:
             or d == DispatchKey.CompositeExplicitAutogradNonFunctional
             or d == DispatchKey.CompositeImplicitAutograd
         ]
-
+        # 这上面三个不能同时指定
         assert len(composites_in_dispatch) <= 1, (
             "cannot specify more than one of CompositeExplicitAutograd, CompositeExplicitAutogradNonFunctional, "
             "or CompositeImplicitAutograd on a single kernel; each "
@@ -676,7 +687,7 @@ class NativeFunction:
             is_abstract = True
         else:
             is_abstract = dispatch.keys() != {DispatchKey.CompositeImplicitAutograd}
-
+        # 特殊的三个 DispatchKey
         has_composite_implicit_autograd_kernel = (
             DispatchKey.CompositeImplicitAutograd in dispatch.keys()
         )
@@ -691,7 +702,16 @@ class NativeFunction:
         # instead it is separately indexed by backend (so other backends can
         # add more dispatch entries after the fact).  Reindex the individual
         # metadata by OperatorName!
-        backend_metadata = {k: {func.name: v} for k, v in dispatch.items()}
+        backend_metadata = {k: {func.name: v} for k, v in dispatch.items()} # (DispatchKey, BackendMetadata) ->
+
+        # {
+        #   CPU : {
+        #       add_cpu : BackendMetadata
+        #   } ,
+        #   CUDA : {
+        #       add_cuda : BackendMetadata
+        #   }
+        # }
 
         # don't care if it exists or not; make it easier to use this function
         # with other yaml parsers that aren't setting __line__ in the dict
@@ -836,12 +856,12 @@ class NativeFunction:
 
 SchemaKind = Enum("SchemaKind", ("functional", "inplace", "out", "mutable", "scratch"))
 
-# A structured kernel is guaranteed to have a functional and out variant, and
-# optionally an inplace variant.
+# 一个结构化的内核保证有一个functional和out变体(variant)，也可以有一个inplace变体
 #
 # NB: we create NativeFunctionsGroup *even if* the function is not
 # actually annotated structured.  Test the structured boolean to see if it
 # actually is structured or not.
+# 我们创建NativeFunctionsGroup，即使函数实际上不是注释为结构化的。测试结构化布尔值，看看它是不是结构化的。
 @dataclass(frozen=True)
 class NativeFunctionsGroup:
     functional: NativeFunction
@@ -921,6 +941,7 @@ class NativeFunctionsGroup:
     def root_name(self) -> str:
         return self.functional.root_name
 
+    # 从字典来解析NativeFunctionsGroup
     @staticmethod
     def from_dict(
         d: Dict[SchemaKind, NativeFunction]
@@ -954,6 +975,9 @@ class BackendMetadata:
     # for in-tree backends. These names come directly from the 'dispatch" field
     # in native_functions.yaml. The dispatch entry is optional; in that
     # case, that is equivalent to having written:
+    # 后端内核的名称，用于树内后端给定的操作符。
+    # 这些名称直接来自于native_functions.yaml中的“dispatch”字段。dispatch条目是可选的;
+    # 在这种情况下，这相当于写了:
     #
     #   dispatch:
     #       CompositeImplicitAutograd: $operator_name
@@ -978,7 +1002,7 @@ class UfuncInnerLoop:
 
     @staticmethod
     def parse(value: str, ufunc_key: UfuncKey) -> "UfuncInnerLoop":
-        name, supported_dtypes_str = value.split(" ", 1)
+        name, supported_dtypes_str = value.split(" ", 1)    # Generic: binop (Bool)   例子 value = binop (Bool)  unfunc_key =  Generic
         assert supported_dtypes_str[0] == "("
         assert supported_dtypes_str[-1] == ")"
         supported_dtypes = set()
@@ -1061,16 +1085,18 @@ class BackendIndex:
 # and most of the code generation we do is type directed (e.g., look at
 # the types, decide what to do.  Think about how we code generate
 # C++ function stubs!)
+# 函数的schema无疑是所有代码生成中最重要的数据结构，因为它定义了操作符的类型签名，
+# 而且我们所做的大多数代码生成都是类型导向的(例如，查看类型，决定要做什么)。想想我们是如何编码生成c++函数存根的!)
 #
-# We will also see in this class the general structure for how we model
-# data in this code generation.  A few notable properties to point out
-# ahead of time:
+# 在这个类中，我们还将看到如何在代码生成中为数据建模的一般结构。一些值得注意的属性需要提前指出:
 #
 #   - These dataclasses are a *lossless* representation of the strings
 #     they are parsed from.  In fact, we assert that given the
 #     information stored in the dataclass, we can exactly reconstruct
 #     the string we parsed from (and assert this inside the parse
 #     definition).  There are a few reasons for this:
+#     这些数据类是它们所解析的字符串的无损表示。事实上，我们断言，给定存储在数据类中的信息，
+#     我们可以精确地重构所解析的字符串(并在解析定义中断言此值)。原因有以下几点:
 #
 #       - If you find that it is difficult to reconstruct the string
 #         given a dataclass, that is a clue that you are data
@@ -1101,6 +1127,8 @@ class BackendIndex:
 #     try to minimize redundancy in data representation.  (Precomputed
 #     fields are OK though: they are defined as a simple function on
 #     the canonical representation in question.)
+#     通常，尽量使__str__代码尽可能简单(即使以更复杂的解析逻辑为代价)。
+#     此外，尽量减少数据表示中的冗余。(预先计算的字段是可以的:它们被定义为一个关于正则表示的简单函数。)
 #
 #   - These dataclasses are all frozen; once constructed their
 #     values never change.  This makes it easy to tell where any
@@ -1111,7 +1139,7 @@ class BackendIndex:
 #
 @dataclass(frozen=True)
 class FunctionSchema:
-    # The name of the operator this function schema describes.
+    # operator的名陈
     name: "OperatorName"
 
     arguments: "Arguments"
@@ -1126,10 +1154,11 @@ class FunctionSchema:
             self.arguments.out,
         )
 
+    # 分离出各个部分的正则
     decl_re = re.compile(r"(?P<name>[^\(]+)\((?P<args>.*)\) -> (?P<returns>.*)")
 
     @staticmethod
-    def parse(func: str) -> "FunctionSchema":
+    def parse(func: str) -> "FunctionSchema":        # 解析FunctionSchema
         # We should probably get a proper parser here
         decls = FunctionSchema.decl_re.findall(func)
         assert len(decls) == 1, f"Invalid function schema: {func}"
@@ -1289,6 +1318,10 @@ class FunctionSchema:
         that returns a newly allocated output; an inplace schema
         modifies the self argument inplace; an out schema writes
         the result into an explicitly provided out argument.
+        schema是什么类型的?
+        函数schema是返回新分配的输出;
+        inplace就地修改self参数;
+        out将结果写入显式提供的out参数。
         """
         is_out = bool(self.arguments.out)
         is_scratch = bool(
@@ -1528,6 +1561,9 @@ class Annotation:
 # (for example, there's no SingleElementType subclass anymore).
 # You never actually construct a Type; usually it's going to be one
 # of the subclasses.  If Python had ADTs this would be one!
+# 类型系统的基类。这也是对jit_type.h的松散建模，但是我们简化了层次结构，
+# 将重点放在与代码生成相关的类型系统方面(例如，不再有SingleElementType子类)。
+# 你永远不会真正构造一个Type;通常它会是一个子类。如果Python有ADTs，这将是一个!
 @dataclass(frozen=True)
 class Type:
     @staticmethod
@@ -1540,11 +1576,11 @@ class Type:
     def _parse(t: str) -> "Type":
         m = re.match(r"^(.+)\?$", t)
         if m is not None:
-            return OptionalType(Type.parse(m.group(1)))
+            return OptionalType(Type.parse(m.group(1))) # 匹配 int? 这种可选的类型
         m = re.match(r"^(.+)\[([0-9]+)?\]$", t)
         if m is not None:
             size = int(m.group(2)) if m.group(2) is not None else None
-            return ListType(elem=Type.parse(m.group(1)), size=size)
+            return ListType(elem=Type.parse(m.group(1)), size=size) # 匹配 int[] 这种列表类型
         try:
             return BaseType(BaseTy[t])
         except KeyError:
@@ -1568,7 +1604,7 @@ class Type:
         raise NotImplementedError
 
 
-# Base types are simple, atomic types with no further structure
+# 基本类型是简单的、没有进一步结构的原子类型
 BaseTy = Enum(
     "BaseTy",
     (
@@ -1611,7 +1647,7 @@ class BaseType(Type):
         return None
 
 
-# Optional types may be specified, or may also be validly given None
+# 可选类型，也可以有效地指定为None
 @dataclass(frozen=True)
 class OptionalType(Type):
     elem: Type
@@ -1629,10 +1665,8 @@ class OptionalType(Type):
         return self.elem.is_list_like()
 
 
-# List types specify that we may have multiples of an element.  We
-# also support explicit sizes on list types, but these have
-# some nontrivial semantics!  (However, for C++ API purposes, explicit
-# sizes are mostly erased from the type system.)
+# 列表类型指定一个元素可以有多个。我们也支持列表类型的显式大小，
+# 但这些有一些重要的语义!(然而，对于c++ API而言，显式的大小通常从类型系统中删除。)
 #
 # DANGER WILL ROBINSON: C++ elaboration depends on elem type; e.g.,
 # int[] elaborates differently than bool[3]!
@@ -1664,13 +1698,15 @@ class Argument:
     type: Type
     default: Optional[str]
 
-    # The semantics of the annotation field are a little strange.
+    # annotation字段的语义有点奇怪。
     #
     # Alias annotations parametrize Tensors (since Tensors are the only things
     # that can alias.)  This motivates why I write Tensor(a!)?  (and not, for
     # example, Tensor?(a!)), because the (a!) describes aliasing on the tensor,
     # which may be optional (i.e., the alias annotation should bind first to
     # Tensor, before the optional postfix annotation).
+    # 别名注释参数化了张量(因为张量是唯一可以别名的东西)。
+    # 这就是为什么我要写张量(a!)?(而不是，例如，张量?(a!))，因为(a!)描述了张量的别名，这可能是可选的(即，别名注释应该首先绑定到张量，在可选的后缀注释之前)。
     #
     # However, despite being a property of Tensor, we (and c10::Argument)
     # store the annotation at the top level of the Argument, rather than
@@ -1683,13 +1719,15 @@ class Argument:
     # structure of annotated types is very simple.  So we just hard
     # code it here.  But if we ever do get anything more complex, this
     # model will have to change!
+    # 现在，事实证明，在代码生成的所有应用程序中，
+    # 带注释的类型的结构非常简单。所以我们在这里硬编码。但如果我们得到更复杂的东西，这个模型将不得不改变!
     annotation: Optional[Annotation]
 
     @staticmethod
     def parse(arg: str) -> "Argument":
         name: str
         default: Optional[str]
-        type_and_annot, name_and_default = arg.rsplit(" ", 1)
+        type_and_annot, name_and_default = arg.rsplit(" ", 1)   # 例如 Tensor input  分割成 Tensor和input
         if "=" in name_and_default:
             name, default = name_and_default.split("=")
         else:
@@ -1714,7 +1752,7 @@ class Argument:
         r = Argument(
             name=name,
             type=type,
-            default=default,
+            default=default,    # 默认参数
             annotation=annotation,
         )
         assert str(r) == arg, f"{str(r)} != {arg}"
@@ -1738,6 +1776,7 @@ class Argument:
             return f"{type} {self.name}{mb_default}"
 
 
+# 返回值
 @dataclass(frozen=True)
 class Return:
     name: Optional[str]
@@ -1790,7 +1829,7 @@ class Return:
             return f"{type} {self.name}"
 
 
-# Represents the self argument for functions that may be methods
+# 表示方法的self参数
 @dataclass(frozen=True)
 class SelfArgument:
     argument: Argument
@@ -1799,6 +1838,7 @@ class SelfArgument:
 # Bundle of arguments that represent a TensorOptions.  This is mostly
 # relevant for the public C++ API but we bake it into the core data
 # model because other APIs often have to interact with it
+# 表示TensorOptions的参数束。这主要与公共c++ API相关，但我们把它嵌入核心数据模型，因为其他API经常必须与它交互
 @dataclass(frozen=True)
 class TensorOptionsArguments:
     dtype: Argument
@@ -1815,6 +1855,7 @@ class Arguments:
     # pre_self_positional is usually empty, but is notably non-empty
     # for where.self, where the condition argument comes before the
     # self argument
+    # Pre_self_positional通常是空的，但是在某些位置是特别非空的。Self，条件参数出现在Self参数之前
     pre_self_positional: Tuple[Argument, ...]
     self_arg: Optional[SelfArgument]
     post_self_positional: Tuple[Argument, ...]
@@ -1973,7 +2014,7 @@ class Arguments:
 
         # TODO: Use a real parser here; this will get bamboozled
         # by signatures that contain things like std::array<bool, 2> (note the space)
-        for arg in args.split(", "):
+        for arg in args.split(", "):     # 分割每一个参数
             if not arg:
                 continue
             if arg == "*":
@@ -2010,6 +2051,8 @@ class Arguments:
         # main categories: positional, kwarg_only, out.
         # Then, we reparse positional and kwarg_only to separate
         # out the self argument and tensor options arguments.
+        # 我们分两个阶段进行。首先，我们将其解析为三个主要类别:位置类、kwarg_only类、输出类。
+        # 然后，我们重新解析position和kwarg_only，以分离出self参数和张量选项参数。
 
         positional, kwarg_only, out = Arguments._preparse(args)
 
@@ -2019,9 +2062,9 @@ class Arguments:
             if a.name == "self":
                 self_ix = i
                 break
-        pre_self_positional: List[Argument]
+        pre_self_positional: List[Argument] # 在self之前的参数
         self_arg: Optional[SelfArgument]
-        post_self_positional: List[Argument]
+        post_self_positional: List[Argument] # 在self之后的参数
         if self_ix is not None:
             pre_self_positional = positional[:self_ix]
             self_arg = SelfArgument(positional[self_ix])
@@ -2223,8 +2266,7 @@ class BaseOperatorName:
             return f"{self.base}{i}"
 
 
-# Operator name is the base operator name along with the (typically not
-# user visible) overload string.
+# 运算符名称是基运算符名称和重载字符串(通常用户不可见)。
 @dataclass(frozen=True)
 class OperatorName:
     name: BaseOperatorName
@@ -2412,6 +2454,7 @@ def parse_returns(return_decl: str) -> Tuple[Return, ...]:
 # A Precompute instance consists of a map from kernel argument name
 # to the list of Argument instances that should replace that
 # kernel argument in the impl function.
+# Precompute实例由一个从内核参数名称到参数实例列表的映射组成，该参数实例应该替换impl函数中的内核参数。
 @dataclass(frozen=True)
 class Precompute:
     # A map from kernel argument name -> a list of precomputed

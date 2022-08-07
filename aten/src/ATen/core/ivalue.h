@@ -169,7 +169,9 @@ struct Capsule {
 // this page.
 
 /// IValue (Interpreter Value) is a tagged union over the types
-/// supported by the TorchScript interpreter. IValues contain their
+/// supported by the TorchScript interpreter.
+/// IValue(解释器值)是TorchScript解释器支持的类型的带标签的联合。
+/// IValues contain their
 /// values as an `IValue::Payload`, which holds primitive types
 /// (`int64_t`, `bool`, `double`, `Device`) and `Tensor` as values,
 /// and all other types as a `c10::intrusive_ptr`. In order to
@@ -183,6 +185,9 @@ struct Capsule {
 /// where `X` is the type you are trying to get. Note that neither the `.toX()`
 /// methods nor the templated `.to<T>` functions do any kind of casting, they
 /// only unwrap the contained value. For example:
+/// IValues被用作TorchScript解释器的输入和输出。要检索包含在IValue中的值，
+/// 使用'.tox()'方法，其中' X '是您试图获得的类型。
+/// 请注意，无论是'.tox() '方法还是模板'。对于<T> '函数执行任何类型的强制转换，它们只展开包含的值。例如:
 ///
 /// \rst
 /// .. code-block:: cpp

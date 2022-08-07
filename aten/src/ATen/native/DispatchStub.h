@@ -7,13 +7,15 @@
 #include <type_traits>
 #include <atomic>
 
-// Implements instruction set specific function dispatch.
+// 实现了根据不同的指令集进行函数调度。
 //
 // Kernels that may make use of specialized instruction sets (e.g. AVX2) are
 // compiled multiple times with different compiler flags (e.g. -mavx2). A
 // DispatchStub contains a table of function pointers for a kernel. At runtime,
 // the fastest available kernel is chosen based on the features reported by
 // cpuinfo.
+// kernel可能使用特殊的指令集(例如AVX2)。
+// DispatchStub包含kernel的函数指针表。在运行时，根据cpuinfo报告的特性选择最快的可用kernel
 //
 // Example:
 //
@@ -34,8 +36,7 @@
 // To call:
 //   stub(kCPU, tensor);
 //
-// TODO: CPU instruction set selection should be folded into whatever
-// the main dispatch mechanism is.
+// TODO: CPU指令集的选择应该被整合到主要的Dispatch机制中。
 
 // ignore warnings about DispatchStub::DEFAULT, AVX, AVX2 defined elsewhere
 #if defined(__clang__)
@@ -68,8 +69,11 @@ struct DispatchStub;
  * specialized or otherwise inlined and duplicated (by the compiler due to
  * template expansion), since it causes size bloat if there are a significant
  * number of specialization of the DispatchStub<> class.
+ * 这个类的唯一目的是概述不需要专门化 或以其他方式内联和复制(由编译器由于模板展开)的方法，
+ * 因为如果DispatchStub<>类有大量专门化，它会导致大小膨胀。
  */
 struct TORCH_API DispatchStubImpl {
+  // 根据CPU选择函数指针
   void* get_call_ptr(
     DeviceType device_type
     , void *DEFAULT
@@ -91,6 +95,9 @@ struct TORCH_API DispatchStubImpl {
    * The CPU Dispatch actual method is chosen in decreasing order of preference by
    * DispatchStubImpl::choose_cpu_impl() in case none is found by
    * DispatchStubImpl::get_call_ptr() in cpu_dispatch_ptr.
+   *
+   * 如果cpu_dispatch_ptr中的DispatchStubImpl::get_call_ptr()没有找到CPU Dispatch实际方法，
+   * 则通过DispatchStubImpl::choose_cpu_impl()按照优先级递减的顺序选择。
    */
   void* choose_cpu_impl(
     void *DEFAULT
@@ -123,7 +130,7 @@ struct TORCH_API DispatchStubImpl {
 
 template <typename rT, typename T, typename... Args>
 struct DispatchStub<rT (*)(Args...), T> {
-  using FnPtr = rT (*) (Args...);
+  using FnPtr = rT (*) (Args...); // 函数指针
 
   DispatchStub() = default;
   DispatchStub(const DispatchStub&) = delete;
@@ -154,7 +161,7 @@ public:
   template <typename... ArgTypes>
   rT operator()(DeviceType device_type, ArgTypes&&... args) {
     FnPtr call_ptr = get_call_ptr(device_type);
-    return (*call_ptr)(std::forward<ArgTypes>(args)...);
+    return (*call_ptr)(std::forward<ArgTypes>(args)...);  // 调用函数
   }
 
   void set_cuda_dispatch_ptr(FnPtr fn_ptr) {
@@ -214,6 +221,9 @@ struct RegisterHIPDispatch {
 
 #define DEFINE_DISPATCH(name) struct name name
 
+/**
+ * 这里注册了 AVX512 和 AVX2的函数指针         类模板 + 静态变量 不同类的静态变量是不一样的...
+ */
 #define REGISTER_ARCH_DISPATCH(name, arch, fn) \
   template <> name::FnPtr TORCH_API DispatchStub<name::FnPtr, struct name>::arch = fn;
 

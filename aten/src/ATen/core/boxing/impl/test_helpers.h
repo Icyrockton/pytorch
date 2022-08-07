@@ -14,6 +14,9 @@ inline std::vector<c10::IValue> makeStack(Inputs&&... inputs) {
   return {std::forward<Inputs>(inputs)...};
 }
 
+/**
+ * 返回一个tensor
+ */
 inline at::Tensor dummyTensor(c10::DispatchKeySet ks, bool requires_grad=false) {
   auto* allocator = c10::GetCPUAllocator();
   int64_t nelements = 1;

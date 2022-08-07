@@ -13069,3 +13069,20 @@
   structured_inherits: TensorIteratorBase
   structured: True
   variants: function
+
+- func: icy_abs(Tensor self) -> Tensor
+  device_check: NoCheck
+  variants: function, method
+  dispatch:
+    CompositeExplicitAutograd: icy_abs
+
+- func: icy_abs_(Tensor(a!) self) -> Tensor(a!)
+  device_check: NoCheck
+  variants: function, method
+  dispatch:
+    CompositeExplicitAutograd: icy_abs_
+
+- func: icy_abs.out(Tensor self, *, Tensor(a!) out) -> Tensor(a!)
+  device_check: NoCheck
+  dispatch:
+    CPU: icy_abs_out

@@ -190,6 +190,7 @@ void check_inplace(const Tensor &self, IntArrayRef sizes, const TensorOptions &o
     ]
 
 
+# create_out , resize_out , check_inplace , maybe_create_proxy 四个函数
 def gen_registration_helpers(backend_index: BackendIndex) -> List[str]:
     return [
         *gen_create_out_helper(backend_index),
@@ -199,24 +200,19 @@ def gen_registration_helpers(backend_index: BackendIndex) -> List[str]:
     ]
 
 
-# Generates Register{dispatch}.cpp (e.g., RegisterCPU.cpp).
+# 生成 Register{dispatch}.cpp (例如 RegisterCPU.cpp).
 #
-#   - The primary function of this file is to register all of the
-#     implementations for the given dispatch key to the dispatcher,
-#     so they are available for use in PyTorch.  If dispatch is
-#     None, we generate schema (def) registrations and catchall
-#     registrations.
-#   - The secondary function of this file is to generate a wrapper
-#     around functions.  In CPUType these wrappers do nothing
-#     (and should be removed), but in other cases they handle
-#     DeviceGuard. A small extra benefit of wrappers is they
-#     are not overloaded, so they can be used in the registration
-#     API without having to disambiguate which overload you want
-#     (as would be the case if you directly registered native::
-#     functions).
+#   - 此文件的主要功能是将给定dispatch key的所有实现注册到Dispatcher，
+#     以便在PyTorch中使用它们。如果dispatch为None，则生成schema (def)注册和catchall注册。
+
+#   - 这个文件的第二个功能是生成函数的包装器。在CPUType中，这些包装器不做任何事情(并且应该被删除)，
+#     但在其他情况下，它们处理DeviceGuard。
+#     包装器的一个额外的小好处是它们没有重载，因此可以在注册API中使用它们，而不必消除需要哪种重载的歧义(如果直接注册native::函数就会出现这种情况)。
+#
 #   - The tertiary function of this file is to generate *static*
 #     cpp API bindings which can be used to bypass dispatcher
 #     directly to kernels, but with user-friendly cpp-style API
+#     该文件的第三个功能是生成静态cpp API绑定，可用于绕过dispatcher直接到内核，但使用的是用户友好的cppstyle API
 @dataclass(frozen=True)
 class RegisterDispatchKey:
     backend_index: BackendIndex
@@ -232,15 +228,19 @@ class RegisterDispatchKey:
     # registration code for.
     selector: SelectiveBuilder
 
-    # Whether or not we are actually code-genning for ROCm
+    # AMD ROCm
     rocm: bool
 
     # The class that all unstructured native functions live under. This is used to improve
     # compiler error messages when a kernel writer adds a native function with the wrong signature.
     # This is only used in unstructured kernels, since structured kernels already live in a class.
+    # 所有非结构化native函数所在的类。
+    # 这用于在内核编写器添加带有错误签名的本机函数时改进编译器错误消息。这只在非结构化内核中使用，因为结构化内核已经存在于一个类中。
     # Finally, this field is currently Optional because it is only used by external backends.
     # It would be nice if we can add the same logic to in-tree kernels too, but that requires updating
     # all of the existing kernel signatures scattered across aten/src/ATen/native.
+    # 最后，这个字段目前是可选的，因为它只被外部后端使用。
+    # 如果我们也能向树内内核添加相同的逻辑，那就太好了，但这需要更新所有分散在aten/src/ATen/native上的现有内核签名。
     class_method_name: Optional[str]
 
     # Only set to true in lightweight dispatch. If lightweight dispatch is enabled we are registering

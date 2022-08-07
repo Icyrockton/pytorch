@@ -151,6 +151,7 @@ def string_stable_hash(s: str) -> int:
 # A small abstraction for writing out generated files and keeping track
 # of what files have been written (so you can write out a list of output
 # files)
+# 一个小的抽象，用于写入生成的文件并跟踪已经写入的文件(这样您就可以列出输出文件的列表)
 class FileManager:
     install_dir: str
     template_dir: str
@@ -287,8 +288,8 @@ class FileManager:
 def make_file_manager(
     options: Namespace, install_dir: Optional[str] = None
 ) -> FileManager:
-    template_dir = os.path.join(options.source_path, "templates")
-    install_dir = install_dir if install_dir else options.install_dir
+    template_dir = os.path.join(options.source_path, "templates")   # 模板的地址
+    install_dir = install_dir if install_dir else options.install_dir   # 生成文件的放置位置
     return FileManager(
         install_dir=install_dir, template_dir=template_dir, dry_run=options.dry_run
     )

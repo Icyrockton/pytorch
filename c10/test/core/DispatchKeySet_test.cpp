@@ -424,3 +424,14 @@ TEST(DispatchKeySet, TestKeyOrderingInvariants) {
         << ", computed backend = " << toString(computed_backend_k);
   }
 }
+
+TEST(DispatchKeySet,icy){
+  auto list = c10::initializeFunctionalityOffsetsAndMasks();
+  for (const auto& item : list){
+    std::cout << item.offset << " " << item.mask << std::endl;
+  }
+//  std::cout << "hello" << std::endl;
+//  int g = numPerBackendFunctionalityKeys();
+//  std::cout << g << std::endl;
+//  std::cout << "hello" << std::endl;
+}

@@ -55,7 +55,7 @@ dereference_impl(char* C10_RESTRICT data[], const int64_t* strides, int64_t i,
 }
 
 template <typename traits>
-typename traits::ArgsTuple
+typename traits::ArgsTuple      // char **data输入的tensor的数据    stride步长    i是索引到第几个element
 dereference(char* C10_RESTRICT data[], const int64_t* strides, int64_t i) {
   using Indices = std::make_index_sequence<traits::arity>;
   return dereference_impl<traits>(data, strides, i, Indices{});
@@ -82,7 +82,7 @@ dereference_vec(char* C10_RESTRICT data[], const typename traits::result_type& o
   using Indices = std::make_index_sequence<traits::arity>;
   return dereference_vec_impl<traits>(data, opt_scalar, S, i, Indices{});
 }
-
+// 这是有返回值类型的 execute_op     从i开始  (i-n)
 template <typename func_t,
     typename std::enable_if<!std::is_void<typename function_traits<func_t>::result_type>::value>::type* = nullptr>
 static inline void
@@ -91,13 +91,13 @@ execute_op(char* C10_RESTRICT data[], const int64_t* strides, int64_t i, int64_t
   using result_type = typename traits::result_type;
   for (; i < n; i++) {
     result_type* out_ptr = (result_type*)(data[0] + i * strides[0]);
-    *out_ptr = c10::guts::apply(std::forward<func_t>(op), dereference<traits>(
+    *out_ptr = c10::guts::apply(std::forward<func_t>(op), dereference<traits>(  // 计算这些input tensor的数组下标 然后传递给op
         &data[1],
         &strides[1],
         i));
   }
 }
-
+// 这是没有返回值的版本
 template <typename func_t,
     typename std::enable_if<std::is_void<typename function_traits<func_t>::result_type>::value>::type* = nullptr>
 static inline void
@@ -113,6 +113,7 @@ execute_op(char* C10_RESTRICT data[], const int64_t* strides, int64_t i, int64_t
 
 // Basic loop operation (one output, N inputs). May be auto-vectorized
 // by the compiler. Supports inputs and outputs of different types.
+// 基本的loop操作(一个ouput，N个input)。可以由编译器自动向量化。支持不同类型的输入和输出。
 template <typename func_t>
 static inline void
 basic_loop(char* C10_RESTRICT data[], const int64_t* strides_, int64_t i, int64_t n, func_t&& op) {
@@ -134,7 +135,7 @@ template<class T, size_t N>
 struct TupleOutput {
   static void handle(char *C10_RESTRICT data[], const int64_t *strides, int64_t i,
                      const T &tuple) {
-    TupleOutput<T, N - 1>::handle(data, strides, i, tuple);
+    TupleOutput<T, N - 1>::handle(data, strides, i, tuple); // 递归调用
 
     auto output = std::get<N - 1>(tuple);
     using output_type = decltype(output);
@@ -163,9 +164,9 @@ void handle_tuple_outputs(char* C10_RESTRICT data[],
   TupleOutput<decltype(tuple), sizeof...(Args)>::handle(data, strides, i, tuple);
 }
 
-// Loop operation for `cpu_kernel_multiple_outputs`.
+// `cpu_kernel_multiple_outputs`的循环操作.
 // 1. Use `c10::guts::apply` to make dynamic method invocation
-//    for the lambda passed in `cpu_kernel_multiple_outputs`.
+//    使用`c10::guts::apply`对  `cpu_kernel_multiple_outputs`中传递的lambda函数进行动态方法调用。
 // 2. Iterate over the members of the returned tuple, set the corresponding
 //    output tensor by the tuple member in `handle_tuple_outputs` function.
 template <typename func_t>
@@ -250,7 +251,7 @@ static inline void unroll_contiguous_scalar_checks(
   }
 }
 
-template <typename op_t, typename vop_t>
+template <typename op_t, typename vop_t>    // 向量化循环
 struct VectorizedLoop2d {
   op_t op;
   vop_t vop;
@@ -306,7 +307,7 @@ VectorizedLoop2d<op_t, vop_t> make_vectorized_loop2d(
   return VectorizedLoop2d<op_t, vop_t>(op, vop);
 }
 
-template <typename func_t>
+template <typename func_t>    // 用于有n个input 1个output的便捷for_each遍历方法
 void cpu_kernel(TensorIteratorBase& iter, func_t&& op, int64_t grain_size = at::internal::GRAIN_SIZE) {
   using traits = function_traits<func_t>;
   // this could be extended to work with void return types
@@ -318,6 +319,7 @@ void cpu_kernel(TensorIteratorBase& iter, func_t&& op, int64_t grain_size = at::
   iter.for_each([&](char** data, const int64_t* strides, int64_t n) {
     // basic loop can handle 1d slices with arbitrary strides, and 1d slices is all that
     // iter.for_each is ever sending to the loop lambda
+    // 基本循环可以处理任意步长的1d片，而1d切片就是iter的全部。for_each一直在向循环发送lambda
       basic_loop(data, strides, 0, n, std::forward<func_t>(op));
   }, grain_size);
   iter.cast_outputs();
@@ -359,7 +361,7 @@ void cpu_kernel_vec(TensorIteratorBase& iter, func_t&& op, vec_func_t&& vop, int
   iter.cast_outputs();
 }
 
-template <typename func_t>
+template <typename func_t>    // 这是cpu_kernel的串行化版本 没有并行操作
 void cpu_serial_kernel(TensorIteratorBase& iter, func_t&& op, const Range& range) {
   using traits = function_traits<func_t>;
   constexpr bool result_void = std::is_void<typename traits::result_type>::value;
@@ -370,7 +372,7 @@ void cpu_serial_kernel(TensorIteratorBase& iter, func_t&& op, const Range& range
 
   iter.serial_for_each([&](char** data, const int64_t* strides, int64_t n) {
     basic_loop(data, strides, 0, n, std::forward<func_t>(op));
-  }, range);
+  }, range);  // <-------- 只改变了这里
   iter.cast_outputs();
 }
 

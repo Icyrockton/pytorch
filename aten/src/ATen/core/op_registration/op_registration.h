@@ -32,9 +32,8 @@ std::unique_ptr<FunctionSchema> inferFunctionSchemaFromFunctor() {
 }
 
 /**
- * An instance of this class handles the registration for one or more operators.
- * Make sure you keep the RegisterOperators instance around since it will
- * deregister the operator it's responsible for in its destructor.
+ * 该类的实例处理一个或多个operator的注册。
+ * 确保保留RegisterOperators实例，因为它会在析构函数中注销它负责的operator。
  *
  * Example:
  *
@@ -61,13 +60,17 @@ public:
   RegisterOperators& operator=(RegisterOperators&&) noexcept;
 
   class TORCH_API Options final {
+    /**
+     * Options对应于operator的kernel ，  一个operator可以有多个kernel
+     * 一个 kernel对应于 一个KernelRegistrationConfig类
+     */
   public:
     Options(const Options&) = delete;
     Options(Options&&) noexcept = delete;
     Options& operator=(const Options&) = delete;
     Options& operator=(Options&&) noexcept = delete;
 
-    // internal-only for registering stack based kernels
+    // internal-only for registering stack based kernels  内部-仅用于注册基于栈的内核
     template<KernelFunction::BoxedKernelFunction* kernel_func>
     Options&& kernel(DispatchKey dispatch_key) && {
       return std::move(*this).kernel(dispatch_key, KernelFunction::makeFromBoxedFunction<kernel_func>(), nullopt, nullptr);
@@ -87,9 +90,8 @@ public:
     }
 
     /**
-     * Use this to specify the schema for an operator. You can also specify
-     * the operator name only to have the function signature part of the
-     * schema be inferred from the kernel function.
+     * 使用它来指定operator的schema
+     * 可以只给出operator的名称，函数签名会自动推断
      *
      * Example:
      *
@@ -122,6 +124,9 @@ public:
      * Use this to register an operator whose kernel is implemented as a functor.
      * The kernel is only called for inputs matching the given dispatch key.
      * You can register multiple kernels for different dispatch keys.
+     *
+     * 使用它来注册一个kernel实现为functor的operator。
+     * 只有匹配给定dispath key的输入才会调用kernel。您可以为不同的dispatch key注册多个kernel。
      *
      * Example:
      *
@@ -164,13 +169,16 @@ public:
 
       return std::move(*this).kernel(
         std::move(dispatch_key),
+          /*  makeFromUnboxedFunctor还没看 */
         KernelFunction::makeFromUnboxedFunctor<false, KernelFunctor>(std::make_unique<KernelFunctor>(std::forward<ConstructorParameters>(constructorParameters)...)),
+            /* CppSignature还没看 */
         impl::CppSignature::make<KernelFunctor>(),
         detail::inferFunctionSchemaFromFunctor<KernelFunctor>()
       );
     }
 
     /**
+     * 和上面那个一样，只是catchall版本
      * Use this to register an operator whose kernel is implemented as a functor.
      * The kernel is a catch-all kernel, meaning it's called independent from
      * the input. Dispatch is disabled for this operator.
@@ -223,6 +231,8 @@ public:
     }
 
     /**
+     * kernel是function版本
+     *
      * Use this to register an operator whose kernel is implemented by a function.
      * The kernel is only called for inputs matching the given dispatch key.
      * You can register multiple kernels for different dispatch keys.
@@ -252,6 +262,8 @@ public:
     }
 
     /**
+     * function的catchAll版本
+     *
      * Use this to register an operator whose kernel is implemented by a function.
      * The kernel is a catch-all kernel, meaning it's called independent from
      * the input. Dispatch is disabled for this operator.
@@ -280,6 +292,9 @@ public:
       );
     }
 
+    /**
+     * 上面的变体版本 少了一个模板参数
+     */
     template<class FuncType>
     // enable_if: only enable it if FuncType is actually a function
     std::enable_if_t<guts::is_function_type<FuncType>::value, Options&&> kernel(DispatchKey dispatch_key, FuncType* kernel_func) && {
@@ -311,6 +326,8 @@ public:
     }
 
     /**
+     * lambda版本的
+     *
      * Use this to register an operator whose kernel is implemented as a lambda.
      * The kernel is only called for inputs matching the given dispatch key.
      * You can register multiple kernels for different dispatch keys.
@@ -399,6 +416,9 @@ public:
     }
 
   private:
+   /**
+    *   ------------------------- 最后都调用到这个函数来了 ----------------------
+    */
     Options&& kernel(c10::optional<DispatchKey> dispatch_key, KernelFunction&& func, c10::optional<impl::CppSignature> cpp_signature, std::unique_ptr<FunctionSchema>&& inferred_function_schema) && {
       KernelRegistrationConfig config;
       config.dispatch_key = dispatch_key;
@@ -579,6 +599,7 @@ public:
     }
 
 private:
+ /* 检查schema 注册 op  */
   void checkSchemaAndRegisterOp_(Options&& config);
 
   static c10::FunctionSchema inferSchemaFromKernels_(const OperatorName& opNameStr, const Options& options);

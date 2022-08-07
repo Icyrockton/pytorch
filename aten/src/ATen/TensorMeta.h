@@ -16,9 +16,8 @@ class Tensor;
 
 namespace impl {
 
-// Use this to define the prototype for a meta function.  There are two
-// versions; one that takes one argument (just the operator name), or FUNC2
-// variant that takes two arguments (operator name and overload name).
+// 使用它来定义meta function的原型。有两个版本;一种接受一个参数(只有operator名称)，
+// 或者接受两个参数(operator名称和overload名称)的FUNC2变体。
 //
 // Example usage:
 //
@@ -51,6 +50,7 @@ namespace impl {
 // Use this to define the prototype for an implementation.  This takes only
 // one argument, which is the name of the dispatch key entry you're
 // implementing.
+// 使用它来定义实现的原型。这只需要一个参数，即您正在实现的调度键条目的名称。
 //
 // Example usage:
 //
@@ -66,6 +66,8 @@ namespace impl {
 // method is varied depending whether or not the operator is
 // functional/out/inplace, and could also be specialized for CPU/CUDA/etc
 // (although presently it isn't).
+// 所有结构化内核类的基类。
+// set_output虚方法根据操作符是否是functional/out/inplace而变化，也可以专门用于CPU/CUDA/etc(尽管目前它不是)。
 //
 // A notable subclass of this interface is TensorIteratorBase.
 struct TORCH_API MetaBase {
@@ -76,13 +78,16 @@ struct TORCH_API MetaBase {
   // structured kernel (what was usually done with `set_output`), use one of
   // these 3 variants, instead. In order to decide which variant to use, check
   // the following decision tree:
+  // 当在结构化内核的META函数中定义输出属性时(通常用' set_output '来做)，使用这3个变体中的一个来代替。
+  // 为了决定使用哪个变体，请检查以下决策树:
   //
   // - Can the kernel you are going to implement support output tensors
   //   with arbitrary strides?
+  //   您要实现的kernel能够支持任意步长的输出张量吗?
   //     |
   //     -- YES: `set_output_raw_strided`
   //     |
-  //     -- NO: Should the output tensor strides be contiguous?
+  //     -- NO: Should the output tensor strides be contiguous? 输出张量步长应该是连续的吗?
   //         |
   //         -- YES: `set_output_contiguous`
   //         |
@@ -91,6 +96,7 @@ struct TORCH_API MetaBase {
   // Use this function whenever the kernel requires specific strides for the
   // output. If `strides` does not match the given output strides, proxy outputs
   // will be created and passed to the IMPL function.
+  // 当内核要求输出特定的步长时，使用此函数。如果' stride '与给定的输出跨距不匹配，将创建代理输出并传递给IMPL函数。
   virtual void set_output_strided(
       int64_t output_idx,
       IntArrayRef sizes,
@@ -103,6 +109,8 @@ struct TORCH_API MetaBase {
   // Use this function whenever the kernel knows how to handle arbitrary strided
   // outputs. This function has the same behavior as the old `set_output`: it
   // will only re-stride if the given output was resized.
+  // 只要内核知道如何处理任意步长输出，就可以使用这个函数。
+  // 这个函数与旧的 `set_output` 具有相同的行为:只有当给定的输出被调整大小时，它才会重新re-stride。
   virtual void set_output_raw_strided(
       int64_t output_idx,
       IntArrayRef sizes,

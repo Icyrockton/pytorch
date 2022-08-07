@@ -13,19 +13,30 @@ namespace c10 {
 // dispatch. Some functionalities that we may dispatch to are allowed to
 // register different handlers for each backend. The BackendComponent is then
 // used to figure out which backend implementation to dispatch to.
+//
+// 从语义上说，BackendComponent的每个值都为我们的分派标识了一个“后端”。
+// 我们可以分派的一些功能允许为每个后端注册不同的处理程序。然后使用BackendComponent来确定要分派到哪个后端实现。
 
 // In implementation terms, the backend component identifies a specific "bit" in
 // a DispatchKeySet. The bits in the DispatchKeySet are split between the bottom
 // ~12 "BackendComponent" bits, while the remaining upper bits are assigned to
-// functionalities. When we encounter a functionality bit that is known to be
+// functionalities.
+
+// 在实现术语中，BackendComponent标识DispatchKeySet中的特定“位”。
+// DispatchKeySet的低12位标识了“BackendComponent”，而剩余的高位分配给functionalities
+//
+// When we encounter a functionality bit that is known to be
 // customizeable per-backend, then we also look at the lower BackendComponent
 // bits and take the highest bit to determine which backend's implementation to
 // use.
+//
+// 当我们遇到已知的每个后端可定制的功能位时，我们还会查看较低的BackendComponent位，并取最高的位来确定使用哪个后端实现。
 
 enum class BackendComponent : uint8_t {
 
   // A "backend" is colloquially used to refer to handlers for dispatch
   // which actually implement the numerics of an operation in question.
+  // “后端”通常指的是分派的处理程序，它实际实现了相关操作的数值。
   //
   // Due to the nature of the enum, these backends are specified in
   // an ordered way, but for most backends this order is not semantically
@@ -33,6 +44,10 @@ enum class BackendComponent : uint8_t {
   // semantics).  The only situation when backend ordering is meaningful
   // is when the backend participates in multiple dispatch with another
   // backend; e.g., CPU and CUDA (cuda must have higher priority).
+  // 由于枚举的性质，这些后端是以有序的方式指定的，但对于大多数后端，这个顺序在语义上没有意义
+  // (例如，在不改变语义的情况下重新排序这些后端是有效的)。
+  //
+  //
 
   // These keys don't correspond to individual kernels.
   // Instead, they represent the backends that are allowed to override specific
@@ -67,6 +82,7 @@ enum class BackendComponent : uint8_t {
   PrivateUse2Bit,
   PrivateUse3Bit,
   // Define an alias to represent end of backend dispatch keys.
+  // 定义一个别名来表示backend dispatch key的末尾
   // If you add new backend keys after PrivateUse3, please also update it here.
   // (But you shouldn't: private use keys should have higher precedence than
   // all built-in keys)
@@ -76,24 +92,31 @@ enum class BackendComponent : uint8_t {
 // Semantically, a dispatch key identifies a possible "level" in our
 // dispatch, for which a handler may be registered. Each handler corresponds
 // to a type of functionality.
+// 从语义上讲，dispatch key标识分派中可能的“级别”，可以为该级别注册处理程序。每个处理程序对应于一种类型的功能。
 //
 // In implementation terms, the dispatch key identifies a specific "bit" in a
-// DispatchKeySet.  Higher bit indexes get handled by dispatching first (because
+// DispatchKeySet.
+// 在实现术语中，分派键标识DispatchKeySet中的特定“位”。
+// Higher bit indexes get handled by dispatching first (because
 // we "count leading zeros" when we extract the highest priority dispatch
 // key.)
+// 较高位的索引 优先调度处理(因为我们在提取最高优先级的调度键时“计算前导零”)。
 //
 // Note [DispatchKey Classification]
-// This enum actually contains several types of keys, which are explained
-// in more detail further down:
+// ***************************这个enum实际上包含几种类型的key，下面会详细说明: ******************************
 // (1) non-customizable backends (e.g. FPGA)
 // (2) non-customizable functionalities (e.g. Functionalize)
-// (3) functionalized that are customizable per backend (e.g. Dense, Sparse,
-// AutogradFunctionality) (4) per-backend instances of customizable
-// functionalities (e.g. CPU, SparseCPU, AutogradCPU) (5) alias keys (e.g.
-// CompositeImplicitAutograd)
+// (3) functionalized that are customizable per backend (e.g. Dense, Sparse, AutogradFunctionality)
+//     每个后端可定制的功能
+// (4) per-backend instances of customizable functionalities (e.g. CPU, SparseCPU, AutogradCPU)
+//     可定制功能的每个后端实例
+// (5) alias keys (e.g. CompositeImplicitAutograd)
 //
 // Of the categories above, it's important to note:
+// 在上述类别中，需要注意的是:
 // (a) which keys are assigned individual bits in a DispatchKeySet
+//     DispatchKeySet中哪些键被分配到单独的位
+//
 // (b) which keys are assigned individual slots in the runtime operator table
 // ("Runtime keys")
 //
@@ -110,6 +133,8 @@ enum class DispatchKey : uint16_t {
   // This is not a "real" functionality, but it exists to give us a "nullopt"
   // element we can return for cases when a DispatchKeySet contains no elements.
   // You can think a more semantically accurate definition of DispatchKey is:
+  // 这不是一个“真正的”functionality，但它的存在是为了给我们一个“nullopt”元素，
+  // 当DispatchKeySet不包含任何元素时，我们可以返回它。你可以认为DispatchKey在语义上更准确的定义是:
   //
   //    using DispatchKey = optional<RealDispatchKey>
   //
@@ -119,20 +144,18 @@ enum class DispatchKey : uint16_t {
 
   Undefined = 0,
 
-  // Define an alias for Undefined to represent CatchAll (long term
-  // this will get eliminated, but for now it's convenient)
+  // 为Undefined定义一个别名来表示CatchAll(从长远来看，这将被消除，但现在它很方便)
   CatchAll = Undefined,
 
-  // ~~~~~~~~~~~~~~~~~~~~~~~~~~ Functionality Keys ~~~~~~~~~~~~~~~~~~~~~~ //
-  // Every value in the enum (up to EndOfFunctionalityKeys)
-  // corresponds to an individual "functionality" that can be dispatched to.
-  // This is represented in the DispatchKeySet by assigning each of these enum
-  // values
-  // to each of the remaining (64 - len(BackendComponent)) bits.
+  // ~~~~~~~~~~~~~~~~~~~~~下面的是 Functionality Keys ~~~~~~~~~~~~~~~~~~~~~~ //
+  // 枚举中的每一个值(直到EndOfFunctionalityKeys)都对应着一个可以被分派的“功能”。
+  // 这在DispatchKeySet中通过将这些枚举值分配给每个剩余的(64 - len(BackendComponent))位来表示。
   //
   // Most of these functionalities have a single handler assigned to them,
   // making them "runtime keys".
+  // 这些功能中的大多数都有一个分配给它们的处理程序，使它们成为“运行时键”。
   // That map to a single slot in the runtime operator table.
+  // 映射到运行时操作符表中的单个槽。
   //
   // A few functionalities are allowed to be customizable per backend.
   // See [Note: Per-Backend Functionality Dispatch Keys] for details.
@@ -140,13 +163,13 @@ enum class DispatchKey : uint16_t {
   // See [Note: Per-Backend Functionality Dispatch Keys]
   Dense,
 
-  // Below are non-extensible backends.
-  // These are backends that currently don't have their own overrides for
-  // Autograd/Sparse/Quantized kernels,
+  // 下面是不可扩展的后端。这些后端目前没有自己的Autograd/Sparse/Quantized内核覆盖
   // and we therefore don't waste space in the runtime operator table allocating
   // space for them.
   // If any of these backends ever need to customize, e.g., Autograd, then we'll
   // need to add a DispatchKey::*Bit for them.
+  // 因此，我们不会浪费运行时操作符表的空间来为它们分配空间。
+  // 如果这些后端需要自定义，例如Autograd，那么我们需要为它们添加一个DispatchKey::Bit。
 
   FPGA, // Xilinx support lives out of tree at
   // https://gitlab.com/pytorch-complex/vitis_kernels
@@ -194,6 +217,8 @@ enum class DispatchKey : uint16_t {
   // These are backends that will work correctly with autograd, but
   // but currently don't require separate implementations
   // for autograd sparse or quantized kernels.
+  // 上面的每个键都被认为是“不可定制的后端”。
+  // 这些后端将正确地与autograd一起工作，但但目前不需要为autograd稀疏或量化的核单独实现。
   // Any new backends that don't need to be customized should go above here.
   // If an existing backend needs to e.g. override autograd, then we can
   // consider promoting it into the "BackendComponent" enum
@@ -388,9 +413,10 @@ enum class DispatchKey : uint16_t {
   TESTING_ONLY_GenericMode,
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ FIN ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
-  EndOfFunctionalityKeys, // End of functionality keys.
+  EndOfFunctionalityKeys, // End of functionality keys.    functionality keys结束
 
   // ~~~~~~~~~~~~~~ "Dense" Per-Backend Dispatch keys ~~~~~~~~~~~~~~~~~~~~ //
+  // ~~~~~~~~~~~~~~ "Dense" backend 的 Dispatch keys ~~~~~~~~~~~~~~~~~~~~ //
   // Here are backends which you think of as traditionally specifying
   // how to implement operations on some device.
 
@@ -417,7 +443,7 @@ enum class DispatchKey : uint16_t {
   EndOfDenseBackends = PrivateUse3,
 
   // ~~~~~~~~~~~~~~ "Quantized" Per-Backend Dispatch keys ~~~~~~~~~~~~~~~~ //
-  // keys starting with an _ are not currently used,
+  // 以_开头的键目前没有使用
   // but are needed to ensure that every backend is indexed correctly.
 
   // See Note [The Ordering of Per-Backend Dispatch Keys Matters!]
@@ -514,16 +540,21 @@ enum class DispatchKey : uint16_t {
   EndOfRuntimeBackendKeys = EndOfAutogradBackends,
 
   // ~~~~~~~~~~~~~~~~~~~~~~ Alias Dispatch Keys ~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+  // ~~~~~~~~~~~~~~~~~~~~~~ 别名 Dispatch Keys ~~~~~~~~~~~~~~~~~~~~~~~~~~ //
   // Note [Alias Dispatch Keys]
   // Alias dispatch keys are synthetic dispatch keys which map to multiple
   // runtime dispatch keys. Alisa keys have precedence, but they are always
   // lower precedence than runtime keys. You can register a kernel to an
   // alias key, the kernel might be populated to the mapped runtime keys
   // during dispatch table computation.
+  // 别名分派键是映射到多个运行时分派键的合成分派键。Alisa键有优先级，
+  // 但它们的优先级总是低于运行时键。您可以将内核注册到别名键，在分派表计算期间，内核可能被填充到映射的运行时键
   // If a runtime dispatch key has multiple kernels from alias keys, which
   // kernel wins is done based on the precedence of alias keys (but runtime
   // keys always have precedence over alias keys).
   // Alias keys won't be directly called during runtime.
+  // 如果一个运行时分派键有多个来自别名键的内核，
+  // 那么哪个内核胜出将基于别名键的优先级(但运行时键总是优先于别名键)。在运行时不会直接调用别名键。
 
   // See Note [Alias Dispatch Key : Autograd]
   Autograd,
@@ -584,6 +615,7 @@ static_assert(
     " into a 64-bit bitmask; you must have less than 64 total entries between them");
 
 // Check if a DispatchKey is an alias mapping to other runtime keys.
+// 检查DispatchKey是别名键?
 constexpr bool isAliasDispatchKey(DispatchKey k) {
   return k >= DispatchKey::StartOfAliasKeys && k <= DispatchKey::EndOfAliasKeys;
 }
@@ -592,14 +624,20 @@ constexpr bool isAliasDispatchKey(DispatchKey k) {
 // Check if a DispatchKey is a per-backend functionality key
 // Any functionalities that can be customized per-backend should be added here.
 // These keys correspond to functionalities that can be customized indivually
-// per backend. While they only take up one bit in the `DispatchKeySet` bitset,
+// per backend.
+// 这些键对应于每个后端可以单独定制的功能
+// While they only take up one bit in the `DispatchKeySet` bitset,
 // they map to (# backends) slots in the operator table.
+// 虽然它们只占用' DispatchKeySet ' bitset中的一个位，但它们映射到操作符表中的(后端)槽。
 // Each of these keys also has a separate set of "runtime keys" in the dispatch
 // key enum, per backend, which *do* map to the individual operator table slots.
 // For example, the "Sparse" key maps to an individual bit in the
 // DispatchKeySet, while `SparseCPU`, `SparseCUDA`, etc all map to individual
 // slots in the runtime operator table.
-
+// 例如，“Sparse” key映射到DispatchKeySet中的单个bit，
+//      而“SparseCPU”、“SparseCUDA”等都映射到运行时操作符表中的单个槽。
+//
+// DispatchKey是否是每个backend都有的 (CPU,SparseCPU,QuantizedCPU, AutogradCPU)
 constexpr bool isPerBackendFunctionalityKey(DispatchKey k) {
   if (k == DispatchKey::Dense || k == DispatchKey::Quantized ||
       k == DispatchKey::Sparse || k == DispatchKey::AutogradFunctionality ||
@@ -614,6 +652,10 @@ constexpr bool isPerBackendFunctionalityKey(DispatchKey k) {
 // BUT EndOfFunctionalityKeys is its own (placeholder) key.
 // e.g. Undefined=0, Dense=1, Sparse=2, EndOfFunctionalityKeys=3.
 // In the above example, there are 3 total functionality keys.
+//
+// 注意，这Undefined括在总数中。
+// 例如:Undefined=0, Dense=1, Sparse=2, EndOfFunctionalityKeys=3。
+// 在上面的例子中，总共有3个功能键。
 constexpr uint8_t num_functionality_keys =
     static_cast<uint8_t>(DispatchKey::EndOfFunctionalityKeys);
 
@@ -628,6 +670,9 @@ static_assert(
     "BackendComponent currently only supports <= 16 backends. If we really need to extend this, \
 there are a few places where this invariant is baked in");
 
+/**
+ * @return 返回 5
+ */
 constexpr uint8_t numPerBackendFunctionalityKeys() {
   uint8_t count = 0;
   for (uint8_t k = 0; k <= num_functionality_keys; ++k) {
@@ -641,11 +686,19 @@ constexpr uint8_t numPerBackendFunctionalityKeys() {
 // See [Note: Trimmed Mobile Dispatch Keys]
 constexpr uint16_t num_runtime_entries = 8;
 #else
+/*
+ * Dense | Quantized |  Sparse |  AutogradFunctionality |  NestedTensor
+ * 这5个functionality 再乘以 后端的个数(13)  得到per-backend的个数
+ * 再加上不能自定义的functionality
+ *
+ * 40 + 13 × 5 = 105
+ */
 constexpr uint16_t num_runtime_entries = num_functionality_keys +
     (numPerBackendFunctionalityKeys() * (num_backends - 1));
 #endif
 
 // See Note [No More Than 16 Backends]
+// backend的mask
 constexpr uint16_t full_backend_mask =
     (static_cast<uint16_t>(1) << num_backends) - 1;
 
@@ -668,9 +721,7 @@ C10_API c10::DispatchKey parseDispatchKey(const std::string& k);
 constexpr DispatchKey kAutograd = DispatchKey::Autograd;
 
 // See Note [The Ordering of Per-Backend Dispatch Keys Matters!]
-// This function relies on the invariant that the dispatch keys between
-// StartOfDenseBackends and EndOfRuntimeBackendKeys are ordered by backend
-// in the same order as `BackendComponent`.
+// 将per-backend的DispatchKey 转换成 BackendComponent
 constexpr BackendComponent toBackendComponent(DispatchKey k) {
   if (k >= DispatchKey::StartOfDenseBackends &&
       k <= DispatchKey::EndOfDenseBackends) {
@@ -724,12 +775,8 @@ constexpr DispatchKey toFunctionalityKey(DispatchKey k) {
   }
 }
 
-// Given (DispatchKey::Dense, BackendComponent::CUDABit), returns
-// DispatchKey::CUDA.
-// See Note [The Ordering of Per-Backend Dispatch Keys Matters!]
-// This function relies on the invariant that the dispatch keys between
-// StartOfDenseBackends and EndOfRuntimeBackendKeys are ordered by backend
-// in the same order as `BackendComponent`.
+// 转换成runtime-key
+// 给定 (DispatchKey::Dense, BackendComponent::CUDABit) 返回 DispatchKey::CUDA
 constexpr DispatchKey toRuntimePerBackendFunctionalityKey(
     DispatchKey functionality_k,
     BackendComponent backend_k) {

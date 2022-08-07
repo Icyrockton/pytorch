@@ -84,27 +84,26 @@ from torchgen.gen_functionalization_type import (
 
 T = TypeVar("T")
 
-# Welcome to the ATen code generator v2!  The ATen code generator is
-# responsible for parsing native_functions.yaml and then generating
-# various generated files (e.g., TypeDefault.cpp) based on the operators
-# defined in this file.  This means that the code generator knows how to
-# parse function schema, and then translate this into various C++ types
-# and boilerplate code.
+# 欢迎使用ATen代码生成器v2!  ATen代码生成器负责解析 native_functions.yaml
+# 然后根据该文件中定义的operator生成各种生成的文件(例如，TypeDefault.cpp)。
+# 这意味着代码生成器知道如何解析函数的schema，然后将其转换为各种c++类型和样板代码。
 #
-# Some things to know about this file when you modify it:
+# 当你修改这个文件时，需要知道的一些事情:
 #
 # - This file has STRICT mypy typechecking.  Typecheck it with
 #   `mypy --config mypy-strict.ini` in the root source directory
 #
-# - Most of the heavy lifting lives in external modules:
+# - 大多数繁重的任务都存在于外部(external)模块中:
 #   - 'model' has the data model for native_functions.yaml.  The classes
 #     in those file represent what you see when you look at
-#     a native_functions.yaml
+#     a native_functions.yaml 具有native_functions.yaml的数据模型。这些文件中的类表示当您查看native_functions.yaml时看到的内容
+#
 #   - 'api' has conversions for how to translate JIT schema into
 #     the various C++ APIs that the codegen interacts with.  There
 #     are in fact THREE different C++ APIs: the public C++ API,
 #     the dispatcher API, and the legacy disaptcher API.  See each
 #     of these respective files for more information
+#     'api'具有如何将JIT模式转换为代码生成器与之交互的各种c++ api的转换。
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #
@@ -130,6 +129,7 @@ _GLOBAL_PARSE_TAGS_YAML_CACHE = {}
 ParsedYaml = namedtuple("ParsedYaml", ["native_functions", "backend_indices"])
 
 
+# 解析 native_functions.yaml 文件 es是yaml对象
 def parse_native_yaml_struct(
     es: object,
     valid_tags: Set[str],
@@ -137,17 +137,17 @@ def parse_native_yaml_struct(
     path: str = "<stdin>",
     skip_native_fns_gen: bool = False,
 ) -> ParsedYaml:
-    assert isinstance(es, list)
+    assert isinstance(es, list) # es是一个list,其中的每个item都是定义的一个NativeFunction
     rs: List[NativeFunction] = []
     bs: Dict[DispatchKey, Dict[OperatorName, BackendMetadata]] = defaultdict(dict)
     for e in es:
         assert isinstance(e.get("__line__"), int), e
         loc = Location(path, e["__line__"])
-        funcs = e.get("func")
+        funcs = e.get("func")   # 得到 func
         with context(lambda: f"in {loc}:\n  {funcs}"):
             func, m = NativeFunction.from_yaml(e, loc, valid_tags, ignore_keys)
             rs.append(func)
-            BackendIndex.grow_index(bs, m)
+            BackendIndex.grow_index(bs, m)  # 将m添加到bs里面 并进行重复判断
     error_check_native_functions(rs)
     # Default dict is to prevent the codegen from barfing when we have a dispatch key that has no kernels yet.
     indices: Dict[DispatchKey, BackendIndex] = defaultdict(
@@ -174,6 +174,7 @@ def parse_native_yaml_struct(
     return ParsedYaml(rs, indices)
 
 
+# 解析tags.yaml文件 es是yaml对象
 def parse_tags_yaml_struct(es: object, path: str = "<stdin>") -> Set[str]:
     assert isinstance(es, list)
     rs: Set[str] = set()
@@ -201,17 +202,21 @@ def parse_tags_yaml(path: str) -> Set[str]:
 
     return _GLOBAL_PARSE_TAGS_YAML_CACHE[path]
 
-
+#
+#
+# 解析native_yaml文件
+#
+#
 def parse_native_yaml(
-    path: str,
-    tags_yaml_path: str,
+    path: str,  # native_functions.yaml文件的路径地址
+    tags_yaml_path: str,    # tags.yaml文件的路径地址
     ignore_keys: Optional[Set[DispatchKey]] = None,
     *,
     skip_native_fns_gen: bool = False,
 ) -> ParsedYaml:
     global _GLOBAL_PARSE_NATIVE_YAML_CACHE
     if path not in _GLOBAL_PARSE_NATIVE_YAML_CACHE:
-        valid_tags = parse_tags_yaml(tags_yaml_path)
+        valid_tags = parse_tags_yaml(tags_yaml_path)    # 解析tags.yaml文件
         with open(path, "r") as f:
             es = yaml.load(f, Loader=LineLoader)
         _GLOBAL_PARSE_NATIVE_YAML_CACHE[path] = parse_native_yaml_struct(
@@ -225,8 +230,7 @@ def parse_native_yaml(
     return _GLOBAL_PARSE_NATIVE_YAML_CACHE[path]
 
 
-# Some assertions are already performed during parsing, but those are only within a single NativeFunction.
-# Assertions here are meant to be performed across NativeFunctions.
+# 在解析期间已经执行了一些断言，但这些断言仅在单个NativeFunction中执行。这里的断言是跨NativeFunctions执行的。
 def error_check_native_functions(funcs: Sequence[NativeFunction]) -> None:
     func_map: Dict[OperatorName, NativeFunction] = {}
     base_func_map: Dict[BaseOperatorName, List[NativeFunction]] = defaultdict(list)
@@ -1595,7 +1599,7 @@ def gen_per_operator_headers(
         if is_structured:
             ops_fm.write_with_template(
                 f"{name}_meta.h",
-                "NativeMetaFunction.h",
+                "NativeMetaFunction.h",   # 生成有关的meta function，  生成structured_xxxxx命名的struct
                 lambda: {
                     "meta_function_declarations": list(
                         mapMaybe(
@@ -1607,7 +1611,7 @@ def gen_per_operator_headers(
         declarations = get_native_function_declarations(
             grouped_native_functions=grouped_functions, backend_indices=backend_indices
         )
-        ops_fm.write_with_template(
+        ops_fm.write_with_template(   # 生成有关的native function，  生成structured_xxxxx命名的struct
             f"{name}_native.h",
             "NativeFunction.h",
             lambda: {
@@ -1759,7 +1763,7 @@ def gen_headers(
     core_fm.write(
         "TensorBody.h",
         lambda: {
-            "tensor_method_declarations": list(
+            "tensor_method_declarations": list( # 有关Tensor的op声明
                 mapMaybe(
                     ComputeTensorMethod(
                         target=Target.DECLARATION,
@@ -1871,21 +1875,21 @@ def gen_source_files(
 #include <ATen/cuda/ATenCUDAGeneral.h>
 #include <ATen/cuda/CUDADevice.h>
 #include <ATen/cuda/CUDAContext.h>"""
-    if rocm:
+    if rocm:    # ROCM是AMD的CUDA
         extra_cuda_headers = """\
 #include <ATen/hip/impl/HIPGuardImplMasqueradingAsCUDA.h>
 #include <ATen/hip/ATenHIPGeneral.h>
 #include <ATen/hip/HIPDevice.h>
 #include <ATen/hip/HIPContext.h>"""
 
-    for dispatch_key in dispatch_keys:
+    for dispatch_key in dispatch_keys:  # 遍历每个dispatch key   model.py::dispatch_keys
         fm = cuda_fm if is_cuda_dispatch_key(dispatch_key) else cpu_fm
 
         if per_operator_headers:
 
-            def operator_headers() -> List[str]:
+            def operator_headers() -> List[str]:    # include各种需要的头文件
                 headers = []
-                for g in grouped_native_functions:
+                for g in grouped_native_functions:  # 遍历 Sequence[Union[NativeFunction, NativeFunctionsGroup]]
                     is_registered = False
                     if backend_index.has_kernel(g):
                         is_registered = True
@@ -1933,7 +1937,7 @@ def gen_source_files(
                     headers.append(f"#include <ATen/{dispatch_key!s}Functions.h>")
                 return headers
 
-        backend_index = backend_indices[dispatch_key]
+        backend_index = backend_indices[dispatch_key]   # 具有相同dispatch_key的BackendIndex
         ns_grouped_native_functions = defaultdict(list)
         for grouped_native_function in grouped_native_functions:
             namespace = (
@@ -1941,10 +1945,10 @@ def gen_source_files(
                 if isinstance(grouped_native_function, NativeFunction)
                 else grouped_native_function.functional.namespace
             )
-            ns_grouped_native_functions[namespace].append(grouped_native_function)
+            ns_grouped_native_functions[namespace].append(grouped_native_function)  # 按namespace划分
 
         static_init_dispatch_registrations = ""
-        for namespace, functions in ns_grouped_native_functions.items():
+        for namespace, functions in ns_grouped_native_functions.items():    # 按namespace划分
             dispatch_registrations_body = (
                 ""
                 if skip_dispatcher_op_registration
@@ -1970,6 +1974,8 @@ TORCH_LIBRARY_IMPL({namespace}, {dispatch_key}, m) {{
     {dispatch_registrations_body}
 }};"""
         dispatch_namespace = str(dispatch_key).lower()
+
+        # 生成 RegisterCPU.cpp RegisterCUDA.cpp RegisterSparseCPU.cpp 这种...
         fm.write_with_template(
             f"Register{dispatch_key}.cpp",
             "RegisterDispatchKey.cpp",
@@ -1981,10 +1987,10 @@ TORCH_LIBRARY_IMPL({namespace}, {dispatch_key}, m) {{
                 "dispatch_headers": dest.gen_registration_headers(
                     backend_index, per_operator_headers, rocm
                 ),
-                "ops_headers": operator_headers(),
+                "ops_headers": operator_headers(),  # op的各种头文件
                 "DispatchKey": dispatch_key,
                 "dispatch_namespace": dispatch_key.lower(),
-                "dispatch_helpers": dest.gen_registration_helpers(backend_index),
+                "dispatch_helpers": dest.gen_registration_helpers(backend_index),   # 生成一些辅助函数
                 "dispatch_namespaced_definitions": list(
                     concatMap(
                         dest.RegisterDispatchKey(
@@ -2011,7 +2017,7 @@ TORCH_LIBRARY_IMPL({namespace}, {dispatch_key}, m) {{
                         grouped_native_functions,
                     )
                 ),
-                "static_init_dispatch_registrations": static_init_dispatch_registrations,
+                "static_init_dispatch_registrations": static_init_dispatch_registrations,   # 向dispatcher注册算子 m.impl(xxx,xxx)
                 "deferred_dispatch_registrations": "",
             },
         )
@@ -2459,23 +2465,24 @@ def main() -> None:
     options = parser.parse_args()
 
     selector = get_custom_build_selector(
-        options.op_registration_whitelist,
+        options.op_registration_whitelist,  # op注册白名单
         options.op_selection_yaml_path,
     )
-
+    # native_yaml文件的路径
     native_yaml_path = os.path.join(options.source_path, "native/native_functions.yaml")
     tags_yaml_path = os.path.join(options.source_path, "native/tags.yaml")
 
     from torchgen.model import dispatch_keys
 
     # TODO: stop generating CUDA kernels for non-CUDA builds
-    ignore_keys = set()
+    ignore_keys = set() # 忽略的一些 DispatchKey
     if not options.mps:
         ignore_keys.add(DispatchKey.MPS)
 
         if DispatchKey.MPS in dispatch_keys:
             del dispatch_keys[dispatch_keys.index(DispatchKey.MPS)]
 
+    # 解析完native_functions.yaml后的内容
     parsed_yaml = parse_native_yaml(native_yaml_path, tags_yaml_path, ignore_keys)
     valid_tags = _GLOBAL_PARSE_TAGS_YAML_CACHE[tags_yaml_path]
     native_functions, backend_indices = (
@@ -2483,8 +2490,9 @@ def main() -> None:
         parsed_yaml.backend_indices,
     )
 
-    grouped_native_functions = get_grouped_native_functions(native_functions)
+    grouped_native_functions = get_grouped_native_functions(native_functions)   # 将那些相同函数签名的op group在一起 (out,inplace变体...)
 
+    # 筛选出NativeFunctionsGroup
     structured_native_functions = [
         g for g in grouped_native_functions if isinstance(g, NativeFunctionsGroup)
     ]
@@ -2499,19 +2507,10 @@ def main() -> None:
 
     template_dir = os.path.join(options.source_path, "templates")
 
-    # NB: It is mandatory to NOT use os.path.join here, as the install directory
-    # will eventually be ingested by cmake, which does not respect Windows style
-    # path slashes.  If you switch this to use os.path.join, you'll get an error
-    # like:
-    #
-    #   Syntax error in cmake code when parsing string
-    #
-    #     C:/Jenkins/workspace/pytorch-builds/pytorch-win-ws2016-cuda9-cudnn7-py3-build/build/aten/src/ATen\core/TensorMethods.h
-    #
-    #   Invalid character escape '\c'.
-    core_install_dir = f"{options.install_dir}/core"
+
+    core_install_dir = f"{options.install_dir}/core"        # build/aten/src/ATen/core
     pathlib.Path(core_install_dir).mkdir(parents=True, exist_ok=True)
-    ops_install_dir = f"{options.install_dir}/ops"
+    ops_install_dir = f"{options.install_dir}/ops"          # build/aten/src/ATen/ops
     pathlib.Path(ops_install_dir).mkdir(parents=True, exist_ok=True)
 
     core_fm = make_file_manager(options=options, install_dir=core_install_dir)
@@ -2563,16 +2562,17 @@ def main() -> None:
             if dp_key not in functions_keys:
                 functions_keys.add(dp_key)
 
+    # 下面开始生成代码，下面开始生成代码，下面开始生成代码，下面开始生成代码，下面开始生成代码，下面开始生成代码
     if "sources" in options.generate:
         gen_source_files(
             native_functions=native_functions,
             grouped_native_functions=grouped_native_functions,
             structured_native_functions=structured_native_functions,
             view_groups=view_groups,
-            selector=selector,
+            selector=selector,  # op选择器
             static_dispatch_idx=static_dispatch_idx,
             backend_indices=backend_indices,
-            core_fm=core_fm,
+            core_fm=core_fm,    # 写入到 build/aten/src/ATen/core FileManager
             cpu_fm=cpu_fm,
             cpu_vec_fm=cpu_vec_fm,
             cuda_fm=cuda_fm,

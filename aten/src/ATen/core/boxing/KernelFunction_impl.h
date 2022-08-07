@@ -5,12 +5,18 @@
 
 namespace c10 {
 
+/**
+ * 构造函数
+ */
 inline KernelFunction::KernelFunction()
     : functor_()
 , boxed_kernel_func_(nullptr)
 , unboxed_kernel_func_(nullptr)
 {}
 
+/**
+ *  私有构造函数
+ */
 inline KernelFunction::KernelFunction(std::unique_ptr<OperatorKernel> functor, InternalBoxedKernelFunction* boxed_kernel_func, void* unboxed_kernel_func)
 : functor_(std::move(functor))
 , boxed_kernel_func_(boxed_kernel_func)
@@ -47,23 +53,24 @@ inline void KernelFunction::callBoxed(const OperatorHandle& opHandle, DispatchKe
         boxed_kernel_func_ != nullptr,
         "Tried to call KernelFunction::callBoxed() on an uninitialized KernelFunction."
     );
-    (*boxed_kernel_func_)(functor_.get(), opHandle, dispatchKeySet, stack);
+    (*boxed_kernel_func_)(functor_.get(), opHandle, dispatchKeySet, stack); /* 调用 InternalBoxedKernelFunction 签名的函数 */
 }
 
 template<class Return, class... Args>
 inline Return callUnboxedKernelFunction(void* unboxed_kernel_func, OperatorKernel* functor, DispatchKeySet dispatchKeySet, Args&&... args) {
     using ActualSignature = Return (OperatorKernel*, DispatchKeySet, Args...);
     ActualSignature* func = reinterpret_cast<ActualSignature*>(unboxed_kernel_func);
-    return (*func)(functor, dispatchKeySet, std::forward<Args>(args)...);
+    return (*func)(functor, dispatchKeySet, std::forward<Args>(args)...); /* 调用未装箱的函数 */
 }
 
-template<class Return, class... Args>
+template<class Return, class... Args>   /* 以开箱方式调用 */
 C10_ALWAYS_INLINE Return KernelFunction::call(const OperatorHandle& opHandle, DispatchKeySet dispatchKeySet, Args... args) const {
     // note: Args above is intentionally not Args&&. We don't want perfect
     // forwarding, which would require Args to be deduced, but instead we
     // want callers to explicitly specify the Args.
 
-    if (C10_LIKELY(unboxed_kernel_func_ != nullptr)) {
+    if (C10_LIKELY(unboxed_kernel_func_ != nullptr)) {  /*  未装箱的函数指针不为空，我们直接调用 */
+      /* 调用开箱的核函数 */
         return callUnboxedKernelFunction<Return, Args...>(unboxed_kernel_func_, functor_.get(), dispatchKeySet, std::forward<Args>(args)...);
     }
 
@@ -71,7 +78,7 @@ C10_ALWAYS_INLINE Return KernelFunction::call(const OperatorHandle& opHandle, Di
         boxed_kernel_func_ != nullptr,
         "Tried to call KernelFunction::call() on an uninitialized KernelFunction."
     );
-
+    /* 以unboxed方式调用boxed的函数(通过将函数参数组装成Stack来调用) */
     return impl::BoxedKernelWrapper<Return(Args...)>::call(
         boxed_kernel_func_,
         functor_.get(),
@@ -81,11 +88,11 @@ C10_ALWAYS_INLINE Return KernelFunction::call(const OperatorHandle& opHandle, Di
     );
 }
 
-template<KernelFunction::BoxedKernelFunction* func>
+template<KernelFunction::BoxedKernelFunction* func> /*  从 void(const OperatorHandle&, Stack*) 创建KernelFunction  */
 inline KernelFunction KernelFunction::makeFromBoxedFunction() {
     return KernelFunction(
         nullptr,  // no functor_ object
-        &make_boxed_function<func>,
+        &make_boxed_function<func>, /* 再把func包装一下,取函数指针 */
         nullptr  // no unboxed function pointer
     );
 }
@@ -123,7 +130,7 @@ inline KernelFunction KernelFunction::makeNamedNotSupported() {
     );
 }
 
-template<bool AllowLegacyTypes, class KernelFunctor>
+template<bool AllowLegacyTypes, class KernelFunctor>      /* 从仿函数构建KernelFunction  */
 inline KernelFunction KernelFunction::makeFromUnboxedFunctor(std::unique_ptr<OperatorKernel> kernelFunctor) {
 #ifndef NDEBUG
   // This assertion is costly for build time so it's debug-gated.

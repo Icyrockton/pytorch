@@ -68,14 +68,13 @@ TORCH_API void ambiguous_autogradother_kernel(OperatorKernel*, const OperatorHan
 [[noreturn]] TORCH_API void named_not_supported_kernel(OperatorKernel*, const OperatorHandle&, DispatchKeySet, Stack*);
 
 /**
- * KernelFunction is similar to std::function but stores a kernel function.
- * You can create a KernelFunction from a boxed or unboxed function/functor/lambda
- * and call it in a boxed or unboxed way. If the way it was created doesn't
- * match the way it was called, it will do boxing or unboxing as necessary.
+ * KernelFunction类似于std::function，但存储的是一个核函数。
+ * 您可以从已装箱或开箱的函数function/functor/lambda创建一个KernelFunction，并以装箱或开箱的方式调用它。
+ * 如果创建它的方式与调用它的方式不匹配，它将根据需要进行装箱或开箱。
  */
 class TORCH_API KernelFunction final {
 public:
-  // This is how boxed kernels are actually stored
+  // 装箱的kernel实际存储的样子
   //
   // Note [Plumbing Keys Through The Dispatcher]
   // Benchmarks have shown that it is expensive for the dispatcher to read from thread-local storage (TLS)
@@ -105,19 +104,17 @@ public:
   using BoxedKernelFunction = void(const OperatorHandle&, Stack*);
   using BoxedKernelFunction_withDispatchKeys = void(const OperatorHandle&, DispatchKeySet, Stack*);
 
-  KernelFunction();
+  KernelFunction(); /* 构造函数 */
 
   // Fast path for dispatch to allow not touching the boxed kernel in
   // the common case where unboxed is available.
+  // 快速调度路径，允许在未装箱的情况下不接触已装箱的内核。
   bool isValidUnboxed() const;
   bool isValid() const;
   bool isFallthrough() const;
 
   /**
-   * Call the function in a boxed way.
-   * If the kernel function was created with an unboxed function,
-   * this will call an unboxing wrapper which then calls into that
-   * unboxed function.
+   * 以装箱的方式调用函数。如果kernel函数是用一个开箱的函数创建的，这将调用一个开箱包装器，然后调用该未装箱的函数。
    *
    * Example:
    *
@@ -130,6 +127,8 @@ public:
    * > KernelFunction func = KernelFunction::makeFromUnboxedLambda(
    * >      [] (Tensor a, bool b) -> Tensor {...});
    * > Tensor result = func.callBoxed(stack);
+   *
+   * 以装箱的方式调用
    */
   void callBoxed(const OperatorHandle& opHandle, DispatchKeySet dispatchKeySet, Stack* stack) const;
 
@@ -137,6 +136,9 @@ public:
    * Call the function in an unboxed way.
    * If the kernel function was created with a boxed function,
    * this will box all inputs and then call into that boxed function.
+   * 以开箱方式调用函数。
+   * 如果kernel是用一个装箱的函数创建的，那么这将装箱所有的输入，然后调用这个装箱的函数。
+   * 注意，这还不能适用于所有类型。
    *
    * Note that this doesn't work for all types yet.
    *
@@ -151,12 +153,14 @@ public:
    * > void boxed_func(OperatorKernel*, Stack* stack) {...}
    * > KernelFunction func = KernelFunction::makeFromBoxedFunction(&boxed_func);
    * > Tensor result = func.call<Tensor, Tensor, bool>(tensor1, true);
+   *
+   * 以开箱方式调用
    */
   template<class Return, class... Args>
   Return call(const OperatorHandle& opHandle, DispatchKeySet dispatchKeySet, Args... args) const;
 
   /**
-   * Create a KernelFunction from a boxed function.
+   * 从装箱函数创建KernelFunction
    *
    * Example:
    *
@@ -207,6 +211,9 @@ public:
    * because knowing the function pointer as a template argument (i.e. at
    * compile time) allows the compiler to inline the function into its
    * unboxing wrapper and yields better performance when calling the function.
+   * 从一个未装箱的函数创建一个KernelFunction。
+   * 这通常比KernelFunction::makeFromUnboxedRuntimeFunction更好，
+   * 因为知道函数指针作为模板参数(即在编译时)允许编译器将函数内联到它的开箱包装器中，并在调用函数时产生更好的性能。
    *
    * Example:
    *
@@ -263,10 +270,10 @@ private:
 
   OperatorKernel* getFunctor_() const;
 
-  c10::intrusive_ptr<OperatorKernel> functor_;
+  c10::intrusive_ptr<OperatorKernel> functor_;  /* 仿函数 */
 
-  InternalBoxedKernelFunction* boxed_kernel_func_;
-  void* unboxed_kernel_func_;
+  InternalBoxedKernelFunction* boxed_kernel_func_;    // 装箱的函数指针
+  void* unboxed_kernel_func_;                         // 未装箱的函数指针
 };
 
 }

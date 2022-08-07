@@ -16,6 +16,7 @@ namespace impl {
 // Take a DispatchKeySet for a Tensor and determine what the actual dispatch
 // DispatchKey should be, taking into account TLS, and skipping backends which
 // fall through.
+// 为一个张量取一个DispatchKeySet，并确定实际的分派DispatchKey应该是什么，考虑TLS，跳过失败的后端。
 //
 // Unlike Tensor::key_set(), the value of this on a tensor can change depending
 // on TLS.
@@ -25,6 +26,7 @@ static inline DispatchKeySet computeDispatchKeySet(
     DispatchKeySet ks,
     // The key mask lets us eliminate (by zero entries) keys which should not
     // be considered for dispatch.  There are two cases when we use this:
+    // key mask允许我们消除(通过零条目)不应考虑的dispatch key。我们可以在两种情况下使用这个短语:
     //
     // - If an operator's dispatch table contains a fallthrough entry, we
     //   should bypass it entirely when finding the key
@@ -105,11 +107,14 @@ namespace detail {
 /**
  * An instance of DispatchKeyExtractor knows how to get a dispatch key given
  * a list of arguments for an operator call.
+ * DispatchKeyExtractor的实例知道如何在给定operator调用参数的情况下获得dispatch key。
  *
  * The instance is specific for a certain operator as:
  *  - In boxed dispatch, different operators have different ways to extract
  *    the dispatch key (e.g. different numbers of arguments), and we precompute
  *    the stack locations we should look at; and
+ *    在装箱分派中，不同的操作符有不同的方法来提取dispatch key(例如，不同数量的参数)，我们预先计算我们应该查看的堆栈位置;和
+ *
  *  - In all dispatch, some backends should be excluded from dispatch because
  *    they have been registered as fallthrough.  The set of excluded backends
  *    varies from operator, as some operators may have overridden the
@@ -125,6 +130,9 @@ public:
     return DispatchKeyExtractor(c10::utils::bitset());
   }
 
+  /**
+   * 根据FunctionSchema生成dispatch_arg_indices_reverse_
+   */
   void registerSchema(const FunctionSchema& schema) {
     TORCH_INTERNAL_ASSERT(dispatch_arg_indices_reverse_.is_entirely_unset());
     dispatch_arg_indices_reverse_ = makeBitsetForDispatchArgs(schema);
@@ -186,7 +194,7 @@ private:
     TORCH_CHECK(schema.arguments().size() <= c10::utils::bitset::NUM_BITS(),
         "The function schema has ", schema.arguments().size(),
         " arguments but this PyTorch build only supports ", c10::utils::bitset::NUM_BITS());
-    c10::utils::bitset dispatch_arg_indices_reverse;
+    c10::utils::bitset dispatch_arg_indices_reverse;  /* reverse  第0个参数在高位 */
     for (const auto index : c10::irange(schema.arguments().size())) {
       if (schema.arguments()[index].type()->isSubtypeOf(*TensorType::get()) ||
           schema.arguments()[index].type()->isSubtypeOf(

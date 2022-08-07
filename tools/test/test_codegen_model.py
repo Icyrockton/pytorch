@@ -14,6 +14,9 @@ from torchgen.gen import LineLoader, parse_native_yaml_struct
 class TestCodegenModel(expecttest.TestCase):
     def assertParseErrorInline(self, yaml_str: str, expect: str) -> None:
         es = yaml.load(yaml_str, Loader=LineLoader)
+        print(yaml_str)
+        print(es[0].keys())
+        print(es[0]['ufunc_inner_loop'])
         try:
             parse_native_yaml_struct(es, set())
         except AssertionError as e:

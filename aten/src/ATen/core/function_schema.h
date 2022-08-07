@@ -16,6 +16,7 @@ namespace c10 {
 // schema as used in the compiler for resolving function calls and reporting
 // errors. These objects should be constructed from C10 schema once those
 // are available.
+// schema 用于编译器中解析函数调用和报告错误。一旦这些对象可用，就应该从C10模式构建它们。
 
 struct Argument;
 struct FunctionSchema;
@@ -118,6 +119,9 @@ struct Argument {
     return is_inferred_type;
   }
 
+  /**
+   * 类型错误信息
+   */
   std::string formatTypeMismatchMsg(const std::string& actual_type) const {
     std::string inferred_type_hint;
     if (is_inferred_type()) {
@@ -208,8 +212,8 @@ struct FunctionSchema {
   FunctionSchema(
       std::string name,
       std::string overload_name,
-      std::vector<Argument> arguments,
-      std::vector<Argument> returns,
+      std::vector<Argument> arguments,  /* 参数 */
+      std::vector<Argument> returns,    /* 返回参数 */
       bool is_vararg = false,
       bool is_varret = false)
       : name_({std::move(name), std::move(overload_name)}),

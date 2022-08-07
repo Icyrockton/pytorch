@@ -15,6 +15,9 @@ namespace c10 {
 /// A DeviceIndex is not independently meaningful without knowing
 /// the DeviceType it is associated; try to use Device rather than
 /// DeviceIndex directly.
+/// 索引:表示特定设备的索引;例如，GPU 1中的1。
+/// 一个DeviceIndex在不知道它关联的DeviceType的情况下是没有独立意义的;
+/// 尝试直接使用Device而不是DeviceIndex。
 using DeviceIndex = int8_t;
 
 /// Represents a a compute device on which a tensor is located. A device is
@@ -24,6 +27,9 @@ using DeviceIndex = int8_t;
 /// device index is optional, and in its defaulted state represents (abstractly)
 /// "the current device". Further, there are two constraints on the value of the
 /// device index, if one is explicitly stored:
+/// 表示一个张量所在的计算设备。一个设备由一个类型唯一标识，它指定它是机器的类型(例如CPU或CUDA GPU)，以及一个设备索引或序数，
+/// 当某一类型有多个时，它标识特定的计算设备。设备索引是可选的，在其默认状态下表示(抽象地)“当前的设备”。
+/// 此外，如果显式存储设备索引值，则有两个约束:
 /// 1. A negative index represents the current device, a non-negative index
 /// represents a specific, concrete device,
 /// 2. When the device type is CPU, the device index must be zero.

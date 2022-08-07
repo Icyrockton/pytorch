@@ -7,7 +7,7 @@
 #include <cmath>
 #include <cstddef>
 #include <vector>
-
+#include <iostream>
 #include <test/cpp/common/support.h>
 
 using namespace torch::test;
@@ -32,6 +32,8 @@ bool almost_equal(at::Tensor left, T right, double tolerance = 1e-4) {
 
 TEST(TensorTest, ToDtype) {
   auto tensor = at::empty({3, 4});
+
+  std::cout << "Hello it's mesdwadaaswa"<< std::endl;
   REQUIRE_TENSOR_OPTIONS(at::kCPU, -1, at::kFloat, at::kStrided);
 
   tensor = tensor.to(at::kInt);

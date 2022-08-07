@@ -78,14 +78,15 @@ using NameVector = SmallVector<Dimname, kDimVectorStaticSize>;
 namespace at {
 
 namespace internal {
-// This parameter is heuristically chosen to determine the minimum number of
-// work that warrants parallelism. For example, when summing an array, it is
+// This parameter is heuristically chosen to determine the minimum number of  这个参数是启发式地选择来确定保证并行性的最小工作量。
+// work that warrants parallelism. For example, when summing an array, it is  例如，当对一个数组求和时，对长度小于32768的数组并行化会被认为是低效的。
 // deemed inefficient to parallelise over arrays shorter than 32768. Further,
 // no parallel algorithm (such as parallel_reduce) should split work into
-// smaller than GRAIN_SIZE chunks.
+// smaller than GRAIN_SIZE chunks.    而且，任何并行算法(比如parallel_reduce)都不应该将工作分割成小于GRAIN_SIZE的块。
 constexpr int64_t GRAIN_SIZE = 32768;
 
 // Storage for a non-owning Tensor, without needing to include Tensor.h
+// 存储一个非拥有的张量，而不需要 include Tensor.h
 class TORCH_API OpaqueOptionalTensorRef {
   alignas(alignof(TensorBase)) std::array<char, sizeof(TensorBase)> data_;
 
@@ -117,7 +118,7 @@ class TORCH_API OpaqueOptionalTensorRef {
 };
 } // namespace internal
 
-struct TORCH_API OperandInfo {
+struct TORCH_API OperandInfo {  // 存储tensor以及tensor所在设备的信息，dtype类型
   using StrideVector = SmallVector<int64_t, 6>;
   OperandInfo() = default;
   C10_ALWAYS_INLINE explicit OperandInfo(c10::MaybeOwned<TensorBase>&& t) {
@@ -168,7 +169,7 @@ struct TORCH_API OperandInfo {
 
   bool will_resize = false;
 
-  bool is_read_write = false;
+  bool is_read_write = false; // 可读可写
 
   void validate() {
     TORCH_CHECK(
@@ -200,14 +201,16 @@ struct TORCH_API OperandInfo {
   // Set tensor to a new value, and store the old tensor value in
   // original_tensor Should only ever be called once for the lifetime of an
   // operand
+  // 将张量设置为一个新值，并将旧的张量值存储在original_tensor中
   void exchange_tensor(c10::MaybeOwned<TensorBase>&& new_tensor);
 
   // Move original_tensor back into tensor, exchange_tensor must have been
   // called before
+  // 将original_tensor移回tensor, exchange_tensor之前一定被调用过
   void restore_original_tensor();
 
  private:
-  c10::MaybeOwned<TensorBase> tensor_base_;
+  c10::MaybeOwned<TensorBase> tensor_base_;   // tensor张量
   c10::MaybeOwned<TensorBase> original_tensor_base_ =
       c10::MaybeOwned<TensorBase>::owned(c10::in_place);
 
@@ -241,6 +244,7 @@ struct TORCH_API TensorIteratorBase : public impl::MetaBase {
 
   // The inner-loop function operates on the fastest moving dimension. It
   // implements element-wise operations in terms of 1-d strided tensors.
+  // 内循环函数在移动最快的维度上运行。它实现了基于1维大步张量的元素操作。
   //
   // Arguments:
   //  data: data pointers for each operand (length `ntensors`)
@@ -264,13 +268,13 @@ struct TORCH_API TensorIteratorBase : public impl::MetaBase {
   }
   int64_t numel() const;
   int ntensors() const {
-    return operands_.size();
+    return operands_.size();  // 有多少个tensor
   }
   int noutputs() const {
-    return num_outputs_;
+    return num_outputs_;      // 有多少个output的tensor
   }
   int ninputs() const {
-    return ntensors() - noutputs();
+    return ntensors() - noutputs(); // input tensor的个数
   }
   IntArrayRef view_offsets() const {
     return view_offsets_;
@@ -278,6 +282,7 @@ struct TORCH_API TensorIteratorBase : public impl::MetaBase {
 
   /// number of elements in the output operand. this is the same as numel() for
   /// operations that are not reductions.
+  /// 输出操作数中的元素数。对于非约简的操作，这与numel()相同。
   int64_t num_output_elements() const;
 
   /// number of reduced dimensions in a reduction operation
@@ -285,7 +290,7 @@ struct TORCH_API TensorIteratorBase : public impl::MetaBase {
 
   /// 1-dimensional iteration and no buffering or type conversion
   bool is_trivial_1d() const;
-  /// Reducible to 1-dimensional and all operands are contiguous
+  /// Reducible to 1-dimensional and all operands are contiguous  可简化为一维且所有操作数都是连续的
   bool is_contiguous() const;
   bool is_dim_reduced(int dim) const;
 
@@ -293,7 +298,7 @@ struct TORCH_API TensorIteratorBase : public impl::MetaBase {
   IntArrayRef strides(int arg) const {
     return operands_[arg].stride_bytes;
   }
-  void* data_ptr(int arg) const;
+  void* data_ptr(int arg) const;  // 操作数的数据指针
   ScalarType dtype(int arg = 0) const {
     return operands_[arg].current_dtype;
   }
@@ -348,7 +353,7 @@ struct TORCH_API TensorIteratorBase : public impl::MetaBase {
   // NOTE: only used on CPU
   void cast_outputs();
 
-  /// Removes an operand from this iterator
+  /// Removes an operand from this iterator 从迭代器中移除操作数
   void remove_operand(int arg);
   /// Shrinks an iterated dimension
   void narrow(int dim, int64_t start, int64_t size);
@@ -399,7 +404,7 @@ struct TORCH_API TensorIteratorBase : public impl::MetaBase {
               loop1d_t,
               c10::function_ref<
                   void(char**, const int64_t* strides, int64_t size)>>::value,
-          int> = 0>
+          int> = 0> // for_each的函数签名   char**代表有n个tensor的数据   char*是一个tensor的数据(byte表示)   strides是所遍历维度的步长  size是当前遍历维度的size
   void for_each(loop1d_t loop, int64_t grain_size = at::internal::GRAIN_SIZE) {
     for_each(loop_2d_from_1d(loop), grain_size);
   }
@@ -587,15 +592,20 @@ struct TORCH_API TensorIteratorBase : public impl::MetaBase {
  protected:
   /// Records the "computation" shape of the output tensor. The computation
   /// shape is different from the regular shape in a few ways:
+  // 记录输出张量的“computation”shape。计算形状与规则形状在以下几个方面有所不同:
   ///
   ///   - The shape may be permuted (via permute_dimensions) so that we
   ///     process the dimensions in the most computationally efficient order
   ///     (rather than the logical order given to us by the users.)
+  ///     可以对形状进行排列(通过permute_dimensions)，以便我们以最有效的计算顺序处理尺寸(而不是用户给出的逻辑顺序)。
+  ///
   ///   - The shape may have adjacent dimensions collapsed (via
   ///     coalesce_dimensions) so that we minimize the number of
   ///     dimensions we have to explicitly iterate over.  For example,
   ///     a pointwise operation on a contiguous tensor "computationally"
   ///     consists of only a single dimension.
+  ///     形状可以将相邻的维度折叠(通过coalesce_dimensions)，以便最小化必须显式遍历的维度数量。
+  ///     例如，一个连续张量的逐点运算“计算上”只包含一个维度。
   ///
   /// In other words, the computation shape is the output shape as it
   /// actually matters for implementing the kernel, but not necessarily the
@@ -622,6 +632,7 @@ struct TORCH_API TensorIteratorBase : public impl::MetaBase {
   /// is no permutation that will make computation dimensions to
   /// output dimensions); methods that manipulate perm_ are obligated
   /// to test that !has_coalesced_dimensions
+  /// 调用coalesce_dimensions之后，该排列就不再有效了(因为，一般来说，没有将计算维度转换为输出维度的排列);操作perm_的方法有义务对此进行测试
   DimVector perm_;
 
   /// Has coalesce_dimensions() (or any moral equivalent, e.g., fast_build())
@@ -630,6 +641,7 @@ struct TORCH_API TensorIteratorBase : public impl::MetaBase {
 
   /// Whether iteration must be fixed. This disables dimension permuting and
   /// also changes how for_each divides work among threads.
+  /// 迭代是否必须是固定的。这将禁用维度排列，并更改for_each在线程间划分工作的方式。
   bool enforce_linear_iteration_ = false;
 
   /// The index offsets into the original tensors for each dimension.
@@ -646,6 +658,9 @@ struct TORCH_API TensorIteratorBase : public impl::MetaBase {
   /// will ultimately be responsible for allocating the output; in those
   /// cases, tensor is simply undefined (and will be populated later
   /// during build()).
+  /// TensorIterator的操作数:输入和输出。输出必须放在operands_列表的前面。
+  /// TensorIterator的每个输出都有一个操作数，即使最终由TensorIterator负责分配输出;
+  /// 在这些情况下，张量是未定义的(稍后将在build()期间填充)。
   ///
   /// This list is initially populated prior to build(), but build() mutates
   /// OperandInfo to populate more information.
@@ -653,6 +668,7 @@ struct TORCH_API TensorIteratorBase : public impl::MetaBase {
 
   /// Number of outputs in operands_ (the length of the outputs prefix
   /// in operands_).
+  /// operands_中的outputs个数
   int num_outputs_ = 0;
 
   /// Whether or not all operands have the same shape.  Having all the same
@@ -662,6 +678,7 @@ struct TORCH_API TensorIteratorBase : public impl::MetaBase {
   /// The "computation" dtype of TensorIterator, specifying what the dtype
   /// we will do the internal computation in TensorIterator.  Typically,
   /// this matches the dtype of the output tensors, but not always!
+  /// TensorIterator的“计算”dtype，指定在TensorIterator内部计算的dtype。通常，这与输出张量的dtype匹配，但并不总是这样!
   ScalarType common_dtype_ = ScalarType::Undefined;
 
   /// This is currently defined as kCPU, or the device of the first non-CPU
@@ -675,7 +692,7 @@ struct TORCH_API TensorIteratorBase : public impl::MetaBase {
   // From TensorIteratorConfig
   bool is_reduction_ = false;
 
-  /// Set by populate_operands(), says if we're handling meta tensors
+  // 由populate_operands()设置，表示是否处理meta tensor
   bool is_meta_ = false;
 };
 
@@ -691,6 +708,7 @@ struct TORCH_API TensorIterator final : public TensorIteratorBase {
       TensorBase& out,
       const TensorBase& a,
       const TensorBase& b);
+  // 二元op构建TensorIterator
   static TensorIterator binary_op(
       TensorBase& out,
       const TensorBase& a,
@@ -738,6 +756,7 @@ class TORCH_API TensorIteratorConfig final {
   /// Construction
   // Stores input/output Tensors without incrementing the reference count.
   // Important: the outputs have to be added before the inputs.
+  // 存储 输入/输出张量而不增加引用计数。重要的是:输出必须在输入之前添加。
   TensorIteratorConfig& add_output(const TensorBase& output) {
     return add_borrowed_output(output);
   }
@@ -753,6 +772,8 @@ class TORCH_API TensorIteratorConfig final {
   // Note that add_{in,out}put are nearly always what you
   // want, and the exception (adding an unnamed temporary) won't
   // compile.
+  // 存储输入输出张量，同时递增引用计数。
+  // 注意add_{in,out}put 几乎总是你想要的，而且异常(添加一个未命名的临时)不会编译。
   TensorIteratorConfig& add_owned_output(const TensorBase& output);
   TensorIteratorConfig& add_owned_input(const TensorBase& input);
 
@@ -761,6 +782,9 @@ class TORCH_API TensorIteratorConfig final {
   // live at least as long as this TensorIteratorConfig and any
   // TensorIteratorBase built from this TensorIteratorConfig.
   // Important: the outputs have to be added before the inputs.
+  // 高级API:存储输入输出张量而不增加引用计数。
+  // 调用者必须确保这些张量的寿命至少与这个TensorIteratorConfig和由这个TensorIteratorConfig构建的任何TensorIteratorBase一样长。
+  // 重要的是:输出必须在输入之前添加。
   TensorIteratorConfig& add_borrowed_output(const TensorBase& output);
   TensorIteratorConfig& add_borrowed_input(const TensorBase& input);
 
@@ -777,6 +801,11 @@ class TORCH_API TensorIteratorConfig final {
   // not, and if the operator is idempotent (for example, Tensor.fill_(0)), then
   // checking memory overlap is BC-breaking. Please don't check memory overlap
   // in that case.
+  // 设置check_mem_overlap_标志，默认为true。
+  // 如果为真，则检查输入与输出是否部分重叠，并检查输出是否内部重叠(例如广播视图)。
+  // 如果检测到不可接受的重叠，则会引发错误。如果你将一个已有的操作符迁移到使用TensorIterator，
+  // 请考虑之前的实现是否检查内存重叠。如果不是这样，并且操作符是幂等的(例如，Tensor.fill_(0))，
+  // 那么检查内存重叠就是BC-breaking。在这种情况下，请不要检查内存重叠。
   TensorIteratorConfig& set_check_mem_overlap(bool check_mem_overlap) {
     check_mem_overlap_ = check_mem_overlap;
     return *this;
@@ -787,6 +816,8 @@ class TORCH_API TensorIteratorConfig final {
   // Setting either of promote_inputs_to_common_dtype_
   //   or cast_common_dtype_to_outputs_ to true will set
   //   check_all_same_dtype_ to false.
+  // 设置check_all_same_dtype_标志，默认为真。如果为真，检查所有输入和定义的输出具有相同的dtype。
+  // 将promote_inputs_to_common_dtype_或cast_common_dtype_to_outputs_设为真将把check_all_same_dtype_设为假。
   TensorIteratorConfig& check_all_same_dtype(const bool _check_all_same_dtype) {
     check_all_same_dtype_ = _check_all_same_dtype;
     return *this;
@@ -796,6 +827,8 @@ class TORCH_API TensorIteratorConfig final {
   // If true, all operands must be on the same device, with the possible
   //   exception of CPU scalars, which can be passed to some CUDA kernels
   //   as kernel arguments.
+  // 设置check_all_same_device_标志，该标志默认为true。
+  // 如果为true，所有操作数必须在同一设备上，CPU标量可能例外，它可以作为内核参数传递给一些CUDA内核。
   TensorIteratorConfig& check_all_same_device(
       const bool _check_all_same_device) {
     check_all_same_device_ = _check_all_same_device;
@@ -830,6 +863,10 @@ class TORCH_API TensorIteratorConfig final {
   //   the inputs in the common dtype are passed as the actual inputs to
   //   the operation.
   // Setting this flag to true sets check_all_same_dtype_ to false.
+  // 设置promote_inputs_to_common_dtype_标志，默认为false。
+  // 如果为真，迭代器的“公共dtype”总是被计算(参见[公共dtype计算]注)，
+  // 并且在CPU上，公共dtype输入的临时副本作为操作的实际输入被传递。
+  // 将该标志设置为true将check_all_same_dtype_设置为false。
   TensorIteratorConfig& promote_inputs_to_common_dtype(
       const bool _promote_inputs_to_common_dtype) {
     promote_inputs_to_common_dtype_ = _promote_inputs_to_common_dtype;
@@ -844,6 +881,9 @@ class TORCH_API TensorIteratorConfig final {
   // true. If true, if the iterator's "common dtype" is an integral type
   // (including bool)
   //   then it is changed to the default float scalar type.
+  // 设置promote_integer_inputs_to_float_标志，默认为false注意:如果设置为true,
+  // promote_inputs_to_common_dtype_也必须为true。
+  // 如果为真，如果迭代器的“公共dtype”是整型(包括bool)，则将其更改为默认的浮点标量类型。
   TensorIteratorConfig& promote_integer_inputs_to_float(
       const bool _promote_integer_inputs_to_float) {
     promote_integer_inputs_to_float_ = _promote_integer_inputs_to_float;
@@ -905,8 +945,8 @@ class TORCH_API TensorIteratorConfig final {
 
  private:
   SmallVector<c10::MaybeOwned<TensorBase>, 4> tensors_;
-  int num_outputs_ = 0;
-  int num_inputs_ = 0;
+  int num_outputs_ = 0; // 输出个数
+  int num_inputs_ = 0;  // 输入个数
 
   c10::optional<DimVector> static_shape_ = c10::nullopt;
   c10::optional<ScalarType> static_dtype_ = c10::nullopt;

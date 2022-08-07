@@ -15,11 +15,15 @@ namespace at {
 
 namespace meta {
 
-TORCH_META_FUNC2(add, Tensor) (
+/**
+ * “meta” 方法,
+ * 检查input有正确的 shape/dtype 以及计算输出的tensor的size是多大
+ */
+TORCH_META_FUNC2(add, Tensor) (     // 宏展开是 structured_add_Tensor::meta(....)
   const Tensor& self, const Tensor& other, const Scalar& alpha
 ) {
-  build_borrowing_binary_op(maybe_get_output(), self, other);
-  native::alpha_check(dtype(), alpha);
+  build_borrowing_binary_op(maybe_get_output(), self, other); // output = self + other
+  native::alpha_check(dtype(), alpha);  // 检查数据类型
 }
 
 TORCH_META_FUNC2(sub, Tensor) (

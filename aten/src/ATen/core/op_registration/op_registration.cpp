@@ -18,17 +18,17 @@ static_assert(std::is_nothrow_move_assignable<c10::optional<RegistrationHandleRA
 
 void RegisterOperators::checkSchemaAndRegisterOp_(Options&& options) {
   TORCH_CHECK(options.schemaOrName_.has_value(), "In operator registration: Tried to register an operator without specifying a schema or operator name.");
-  if (options.schemaOrName_->is_right()) {
-    // schema was explicitly specified.
+  if (options.schemaOrName_->is_right()) {  /* 是FunctionSchema */
+    // schema显式给定了
 
     checkNoDuplicateKernels_(options);
 
     registerOp_(std::move(options));
   } else {
-    // schema wasn't explicitly specified. Take the inferred schema for registering the op.
+    // schema需要推断
 
     OperatorName name = std::move(*options.schemaOrName_).left();
-    FunctionSchema inferred_schema = inferSchemaFromKernels_(name, options);
+    FunctionSchema inferred_schema = inferSchemaFromKernels_(name, options);  /* 推断schema */
 
     options.schemaOrName_ = c10::make_right<OperatorName, FunctionSchema>(
       std::move(name.name),
@@ -71,6 +71,9 @@ c10::FunctionSchema RegisterOperators::inferSchemaFromKernels_(const OperatorNam
   return *inferred_schema;
 }
 
+/**
+ * 检查kernel是否重复（通过检查dispatch_key)
+ */
 void RegisterOperators::checkNoDuplicateKernels_(const Options& options) {
   std::unordered_set<DispatchKey> dispatch_keys;
   bool has_catchall_kernel = false;
@@ -86,8 +89,11 @@ void RegisterOperators::checkNoDuplicateKernels_(const Options& options) {
   }
 }
 
+/**
+ *  向Dispatcher注册operator
+ */
 void RegisterOperators::registerOp_(Options&& options) {
-  FunctionSchema schema = std::move(*options.schemaOrName_).right();
+  FunctionSchema schema = std::move(*options.schemaOrName_).right();  /* 保证了右边的值有value */
 
   // HACK: bong in the alias analysis kind from the legacy API directly
   // into schema
@@ -97,13 +103,15 @@ void RegisterOperators::registerOp_(Options&& options) {
 
   OperatorName op_name = schema.operator_name();
 
+  /*  registrars_ 用于保存析构时需要的handle */
   registrars_.emplace_back(
-    Dispatcher::singleton().registerDef(std::move(schema), "registered by RegisterOperators")
+    Dispatcher::singleton().registerDef(std::move(schema), "registered by RegisterOperators") /* 定义operator */
   );
 
   for (auto& kernel : options.kernels) {
     registrars_.emplace_back(
       // NOLINTNEXTLINE(performance-move-const-arg)
+        /* 注册kernel的实现 */
       Dispatcher::singleton().registerImpl(op_name, kernel.dispatch_key, std::move(kernel.func), std::move(kernel.cpp_signature), std::move(kernel.inferred_function_schema), "registered by RegisterOperators")
     );
   }

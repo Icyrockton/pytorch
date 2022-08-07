@@ -48,6 +48,22 @@ private:
   bool* called_;
 };
 
+TEST(OperatorRegistrationTest,my_test){
+    bool called = false;
+  c10::RegisterOperators().op(
+        c10::RegisterOperators::options().schema("_test::dummy(Tensor dummy) -> ()")
+            .catchAllKernel<MockKernel>(&called)
+        );
+
+  auto op = Dispatcher::singleton().findSchema({"_test::dummy", ""});
+//  std::cout << op->dumpState() << std::endl;
+//  std::cout << "hello" << std::endl;
+//  op->schema().dump();
+//  std::cout << op->schema().name() << std::endl;
+//  std::cout << op->schema().name() << std::endl;
+
+}
+
 TEST(OperatorRegistrationTest, whenRegisteringWithSchemaBeforeKernelInOptionsObject_thenCanBeCalled) {
   bool called = false;
   auto registrar = c10::RegisterOperators().op(c10::RegisterOperators::options().schema("_test::dummy(Tensor dummy) -> ()").catchAllKernel<MockKernel>(&called));

@@ -58,6 +58,7 @@ private:
 
     impl::OperatorEntry op;
 
+    // 引用计数
     // These refer to the number of outstanding RegistrationHandleRAII
     // for this operator.  def_count reflects only def() registrations
     // (in the new world, this should only ever be 1, but old style
@@ -114,15 +115,14 @@ public:
    * Looks for an operator schema with the given name and overload name
    * and returns it if it is registered WITH A SCHEMA.
    * Returns nullopt otherwise.
+   *
+   * 根据operator(算符)的名称 查找对应的schema
    */
   c10::optional<OperatorHandle> findSchema(const OperatorName& operator_name);
 
   /**
-   * Variant of findSchema that results in less code generated at the call site.
-   * It (1) takes const char* pointer rather than OperatorName (so we skip
-   * generating std::string constructor calls at the call site), and (2)
-   * it raises an exception if the operator is not found (so we skip
-   * generating exception raising code at the call site)
+   * findSchema的变体，(1)接受const char*字符串 而不是std::string，减少了实例化string
+   *                  (2)如果operator没有找到，抛出异常
    *
    * Irritatingly, we still have to generate the handful of instructions
    * for dealing with an exception being thrown during static initialization
@@ -140,7 +140,7 @@ public:
 
   // ------------------------------------------------------------------------
   //
-  // Invoking operators
+  // Invoking operators   调用算子
   //
   // ------------------------------------------------------------------------
 
@@ -174,9 +174,9 @@ public:
 
   /**
    * Register a new operator schema.
+   * 注册一个新的operator及对应的schema。对于kernel注册，使用下面的registerImpl
    *
-   * If a schema with the same operator name and overload name already exists,
-   * this function will check that both schemas are exactly identical.
+   * 如果已经存在具有相同名称和重载名的schema，此函数将检查这两个schema是否完全相同。
    */
   RegistrationHandleRAII registerDef(FunctionSchema schema, std::string debug, std::vector<at::Tag> tags = {});
 
@@ -280,7 +280,7 @@ private:
 
   std::list<OperatorDef> operators_;
 #if !defined(C10_MOBILE)
-  LeftRight<ska::flat_hash_map<OperatorName, OperatorHandle>> operatorLookupTable_;
+  LeftRight<ska::flat_hash_map<OperatorName, OperatorHandle>> operatorLookupTable_; // operator的名称 -> OperatorHandle的映射
 #else
   RWSafeLeftRightWrapper<ska::flat_hash_map<OperatorName, OperatorHandle>> operatorLookupTable_;
 #endif
@@ -366,6 +366,9 @@ public:
     return TypedOperatorHandle<FuncType>(operatorIterator_);
   }
 
+  /**
+   *  以装箱方式调用
+   */
   void callBoxed(Stack* stack) const {
     c10::Dispatcher::singleton().callBoxed(*this, stack);
   }
@@ -410,6 +413,7 @@ template<class FuncType>
 class TypedOperatorHandle final {
   static_assert(guts::false_t<FuncType>(), "FuncType in OperatorHandle::typed<FuncType> was not a valid function type");
 };
+
 template<class Return, class... Args>
 class TypedOperatorHandle<Return (Args...)> final : public OperatorHandle {
 public:
@@ -419,7 +423,7 @@ public:
   TypedOperatorHandle& operator=(const TypedOperatorHandle&) = default;
 
   // See [Note: Argument forwarding in the dispatcher] for why Args doesn't use &&
-  C10_ALWAYS_INLINE Return call(Args... args) const {
+  C10_ALWAYS_INLINE Return call(Args... args) const {   // <-------------------------------------- 1.算子调用进来， 传递函数的参数
     return c10::Dispatcher::singleton().call<Return, Args...>(*this, std::forward<Args>(args)...);
   }
 
@@ -576,6 +580,11 @@ inline Return Dispatcher::redispatch(const TypedOperatorHandle<Return (Args...)>
   return kernel.template call<Return, Args...>(op, currentDispatchKeySet, std::forward<Args>(args)...);
 }
 
+/**
+ * 调用operator
+ * @param op    需要调用的operator
+ * @param stack 传递给operator的参数
+ */
 inline void Dispatcher::callBoxed(const OperatorHandle& op, Stack* stack) const {
   // note: this doesn't need the mutex because write operations on the list keep iterators intact.
   const auto& entry = op.operatorDef_->op;

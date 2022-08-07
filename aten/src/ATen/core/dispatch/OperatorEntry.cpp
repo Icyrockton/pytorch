@@ -82,7 +82,7 @@ void OperatorEntry::deregisterSchema() {
   schema_ = c10::nullopt;
   dispatchKeyExtractor_.deregisterSchema();
 }
-
+/* 注册operator对应的kernel */
 OperatorEntry::AnnotatedKernelContainerIterator OperatorEntry::registerKernel(
   const c10::Dispatcher& dispatcher,
   c10::optional<DispatchKey> dispatch_key,
@@ -148,7 +148,7 @@ OperatorEntry::AnnotatedKernelContainerIterator OperatorEntry::registerKernel(
 #endif
   AnnotatedKernelContainerIterator inserted = k.begin();
   // update the dispatch table, i.e. re-establish the invariant
-  // that the dispatch table points to the newest kernel
+  // that the dispatch table points to the newest kernel    更新dispatch table，即重新建立dispatch table指向最新的kernel
   if (dispatch_key.has_value()) {
     updateDispatchTable_(dispatcher, *dispatch_key);
   } else {
@@ -378,6 +378,8 @@ void OperatorEntry::updateDispatchTable_(const c10::Dispatcher& dispatcher, Disp
 // current design is more tractable with all updates funneled through a single
 // per-key update mechanism, than with multiple variations that assume different
 // invariants.
+// 注意，我们使用updateDispatchTable_()来执行每个键的更新，尽管该函数用于处理乱序更新和别名键更新，但我们都没有发送它。
+// 这是有意为之的——当前的设计通过单个每个键的更新机制来进行所有更新，比假设不同不变量的多个变体更容易处理。
 //
 void OperatorEntry::updateDispatchTableFull_(const c10::Dispatcher& dispatcher) {
   // Note [Undefined in dispatchTable_]

@@ -240,7 +240,7 @@ std::array<FunctionalityOffsetAndMask, num_functionality_keys>
 initializeFunctionalityOffsetsAndMasks() {
   std::array<FunctionalityOffsetAndMask, num_functionality_keys>
       offsets_and_masks;
-  // manualy set the first entry, which corresponds to Undefined.
+  // 手动设置第一个条目，对应于Undefined.
   offsets_and_masks[0] = FunctionalityOffsetAndMask(0, 0);
   // loop through every functionality key (aside from Undefined).
   for (const auto functionality_idx : c10::irange(1, num_functionality_keys)) {
@@ -251,6 +251,8 @@ initializeFunctionalityOffsetsAndMasks() {
     // If the previous functionality was not per-backend, then we can just
     // increment the previous offset. Otherwise, the next offset =
     // previous_offset + num_backends.
+    // 如果之前的功能不是基于backend，那么我们可以只增加之前的偏移量。
+    // 否则，next_offset = previous_offset + num_backend。
     auto next_offset = prev_offset_and_mask.offset +
         (prev_offset_and_mask.mask == 0 ? 1 : num_backends);
     // the mask is used in the runtime index calculation to find the offset of

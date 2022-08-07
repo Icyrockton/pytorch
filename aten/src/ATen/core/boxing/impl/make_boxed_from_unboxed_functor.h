@@ -22,19 +22,25 @@ class OperatorHandle;
  * > template<class T> void func(T&& arg) { func2(std::forward<T>(arg)); }
  *
  * but that relies on inferring the correct reference type (i.e. value vs & vs &&) from the argument.
+ * 但这依赖于从参数中推断出正确的引用类型(即value vs & vs &&)。
  * In our case, we cannot rely on the argument as supplied by the caller, because that could infer a
- * different reference type than was used in the kernel function. The correct reference type
+ * different reference type than was used in the kernel function.
+ * 在本例中，我们不能依赖caller提供的参数，因为这可能推断出与核函数中使用的引用类型不同的引用类型。
+ * The correct reference type
  * is dictated by the kernel signature and must be identical since we cast function pointers
- * through void* pointers and mismatches would be UB. So we need a forwarding pattern that determines
+ * through void* pointers and mismatches would be UB.
+ * 正确的引用类型由核签名指定，并且必须是相同的，因为我们通过void指针强制转换函数指针，不匹配将是未定义的行为。
+ * So we need a forwarding pattern that determines
  * the reference type to use by looking at the explicitly supplied operator signature, not by looking at
  * the argument we're calling it with.
+ * 因此，我们需要一个转发模式，通过查看显式提供的operator签名来确定要使用的引用类型，而不是通过查看调用时使用的参数。
  *
  * What does std::forward do, exactly?
  * ------------------------------------
  * std::forward<T>(t) is a way to cast t to the reference type supplied in T.
  * Let's assume decay_t<T> == U and T is either U or some reference of U.
- *  - std::forward<T&>(t) will return U&, no matter what kind of reference t is.
- *  - std::forward<T&&>(t) will return U&&, no matter what kind of reference t is.
+ *  - std::forward<T&>(t) will return U&, no matter what kind of reference t is.          左值
+ *  - std::forward<T&&>(t) will return U&&, no matter what kind of reference t is.        右值
  *  - std::forward<T>(t) will return U&& (not U!), no matter what kind of reference t is.
  *
  * For universal references, that means that in the following function
@@ -48,6 +54,7 @@ class OperatorHandle;
  *    a lvalue reference.
  *
  * How do we use that?
+ * 我们如何使用它?
  * ------------------------------------
  * But std::forward can also be used outside of the common "universal forwarding" pattern to change
  * reference types. So instead of following the common C++ pattern, we notice what
@@ -78,6 +85,7 @@ class OperatorHandle;
  * The kernel class is allowed to have members but these are equivalent
  * to global variables. The kernel implementation is responsible for
  * preventing race conditions on them.
+ * kernel类允许有成员，但这些成员等同于全局变量。kernel实现负责防止它们上的竞争条件。
  *
  * See below for how to register this kernel with PyTorch.
  */
@@ -86,8 +94,7 @@ struct TORCH_API OperatorKernel : public c10::intrusive_ptr_target {
 };
 
 namespace impl {
-  // supported_primitive_arg_types defines which primitive types we allow in
-  // kernel functions as arguments or returns.
+  // supported_primitive_arg_types 定义核函数中允许哪些基本类型，作为参数类型 或 返回值类型。
   // Additionally, we support lists, dicts and optionals containing these types.
   using supported_primitive_arg_types = guts::typelist::typelist<
     int64_t,
@@ -117,6 +124,9 @@ namespace impl {
   //
   // assert_is_valid_input_type
   // checks that T can be unboxed from an IValue into a C++ value.
+  //
+  // assert_is_valid_input_type
+  // 检查T是否可以从IValue拆箱为c++值。
   //
 
   template<class T, bool AllowDeprecatedTypes, class Enable = void>
@@ -450,7 +460,7 @@ namespace impl {
       // DispatchKeySet.
       // This is not the case for pretty much all manually written kernels, however- this functor serves to separate the calling convention
       // of the dispatcher from the calling convention of manually written kernels.
-      return (*functor_)(std::forward<ParameterTypes>(args)...);
+      return (*functor_)(std::forward<ParameterTypes>(args)...);  /* 调用实际的仿函数 */
     }
   };
 
@@ -545,7 +555,7 @@ namespace impl {
     }
   };
 
-  // make_boxed_from_unboxed_functor
+  // make_boxed_from_unboxed_functor    从仿函数 生成有签名 void(OperatorKernel*, const OperatorHandle&, DispatchKeySet, Stack*) 的函数
 
   template<class KernelFunctor, bool AllowDeprecatedTypes>
   struct make_boxed_from_unboxed_functor final {
@@ -559,8 +569,8 @@ namespace impl {
       // We don't want to expose the DispatchKeySet type to jit, so we don't include this argument on the stack.
       // See Note [Plumbing Keys Through The Dispatcher] for the background.
       using ArgTypes = typename c10::remove_DispatchKeySet_arg_from_func<KernelFunctor>::parameter_types;
-      constexpr bool has_outputs = !std::is_same<void, ReturnType>::value;
-      constexpr size_t num_inputs = guts::typelist::size<ArgTypes>::value;
+      constexpr bool has_outputs = !std::is_same<void, ReturnType>::value;  /* 是否有输出 */
+      constexpr size_t num_inputs = guts::typelist::size<ArgTypes>::value;   /* 输出参数个数 */
 #ifdef __cpp_if_constexpr
       if constexpr (has_outputs) {
 #else

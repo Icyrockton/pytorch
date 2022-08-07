@@ -79,6 +79,7 @@ TORCH_API void record_kernel_function_dtype(std::string name);
     return __VA_ARGS__();                                     \
   }
 
+// 每条case语句
 #define AT_DISPATCH_CASE(enum_type, ...) \
   AT_PRIVATE_CASE_TYPE_USING_HINT(enum_type, scalar_t, __VA_ARGS__)
 
@@ -137,6 +138,9 @@ inline void deprecated_AT_DISPATCH_ALL_TYPES_AND_HALF_AND_COMPLEX() {}
 // dtypes we care about in PyTorch.  We call it "dispatch" because
 // we are "dispatching" to the correct, dtype-specific kernel.
 //
+// AT_DISPATCH_** 宏家族提供了在PyTorch中根据不同dtypes生成kernel的能力
+// 我们称它为“dispatch”，因为我们将"dispatch"到正确的、特定于dtype的kernel
+//
 // A standard usage looks like:
 //
 //      AT_DISPATCH_ALL_TYPES(self.scalar_type(), "op_name", [&] {
@@ -147,12 +151,16 @@ inline void deprecated_AT_DISPATCH_ALL_TYPES_AND_HALF_AND_COMPLEX() {}
 // There are many variations of this macro, so it's important to
 // understand exactly /which/ dtypes you want to get instantiated, as
 // well as what the "default" set is.
+// 这个宏有很多变体，所以准确地理解想要实例化哪些dtypes以及“default”集是什么是很重要的。
 //
 // The default set of dtypes that are instantiated (e.g., by
 // AT_DISPATCH_ALL_TYPES) are floating point types (float, double),
 // and integral types (int32_t, int64_t, int16_t, int8_t, uint8_t),
 // but NOT booleans (bool), half-precision floats (Half) or
 // complex number (c10::complex<float>, c10::complex<double>).
+// 被实例化的dtypes的默认集合(例如，通过AT_DISPATCH_ALL_TYPES)是
+// 浮点类型(float, double)和整型(int32_t, int64_t, int16_t, int8_t, uint8_t)，
+// 但**不是**布尔类型(bool)，半精度浮点(Half)或复数(c10::complex<float>， c10::complex<double>)。
 // This "cut" is somewhat historical (the default types are the
 // ones that TH historically supported), but it also reflects the
 // fact that the non-default types are "poorly" behaved (booleans
@@ -161,6 +169,7 @@ inline void deprecated_AT_DISPATCH_ALL_TYPES_AND_HALF_AND_COMPLEX() {}
 //
 // Here are the questions you should generally ask to decide which
 // dispatch you want:
+// 以下是你在决定你想要哪种dispatch时通常应该问的问题:
 //
 // 1. Is this an integral or floating point specific operation?
 //    (If so, you'll want one of the FLOATING or INTEGRAL macros.)
@@ -197,6 +206,7 @@ inline void deprecated_AT_DISPATCH_ALL_TYPES_AND_HALF_AND_COMPLEX() {}
 // -------------------
 // There is also a switch-case like syntax which is useful if a kernel
 // needs to be specialized for particular scalar types
+// 如果内核需要特定的标量类型，那么还有一种类似切换大小写的语法非常有用
 //
 //      AT_DISPATCH_SWITCH(self.scalar_type(), "op_name",
 //          AT_DISPATCH_CASE_INTEGRAL_TYPES([&] {
@@ -210,9 +220,7 @@ inline void deprecated_AT_DISPATCH_ALL_TYPES_AND_HALF_AND_COMPLEX() {}
 //          })
 //      );
 //
-// For each AT_DISPATCH_FOO macro, there is a corresponding
-// AT_DISPATCH_CASE_FOO macro which can be used inside of an
-// AT_DISPATCH_SWITCH block.
+// 对于每个AT_DISPATCH_FOO宏，都有一个对应的AT_DISPATCH_CASE_FOO宏，可以在AT_DISPATCH_SWITCH块中使用。
 
 // NB: the the_type variable is not used, but we have kept it for
 // backwards compatibility.  It's probably not used by anyone though;
@@ -341,6 +349,7 @@ inline void deprecated_AT_DISPATCH_ALL_TYPES_AND_HALF_AND_COMPLEX() {}
       AT_DISPATCH_CASE_FLOATING_AND_COMPLEX_TYPES_AND3(     \
           SCALARTYPE1, SCALARTYPE2, SCALARTYPE3, __VA_ARGS__))
 
+//  整数类型的所有case
 #define AT_DISPATCH_CASE_INTEGRAL_TYPES(...)          \
   AT_DISPATCH_CASE(at::ScalarType::Byte, __VA_ARGS__) \
   AT_DISPATCH_CASE(at::ScalarType::Char, __VA_ARGS__) \
@@ -348,9 +357,11 @@ inline void deprecated_AT_DISPATCH_ALL_TYPES_AND_HALF_AND_COMPLEX() {}
   AT_DISPATCH_CASE(at::ScalarType::Long, __VA_ARGS__) \
   AT_DISPATCH_CASE(at::ScalarType::Short, __VA_ARGS__)
 
+//  引用了所有整数类型
 #define AT_DISPATCH_INTEGRAL_TYPES(TYPE, NAME, ...) \
   AT_DISPATCH_SWITCH(TYPE, NAME, AT_DISPATCH_CASE_INTEGRAL_TYPES(__VA_ARGS__))
 
+// 整数类型 + 额外的一个类型
 #define AT_DISPATCH_CASE_INTEGRAL_TYPES_AND(SCALARTYPE, ...) \
   AT_DISPATCH_CASE_INTEGRAL_TYPES(__VA_ARGS__)               \
   AT_DISPATCH_CASE(SCALARTYPE, __VA_ARGS__)
@@ -365,6 +376,7 @@ inline void deprecated_AT_DISPATCH_ALL_TYPES_AND_HALF_AND_COMPLEX() {}
   AT_DISPATCH_CASE_INTEGRAL_TYPES(__VA_ARGS__) \
   AT_DISPATCH_CASE_FLOATING_TYPES(__VA_ARGS__)
 
+// 覆盖了整数和浮点数,complex没有包含
 #define AT_DISPATCH_ALL_TYPES(TYPE, NAME, ...) \
   AT_DISPATCH_SWITCH(TYPE, NAME, AT_DISPATCH_CASE_ALL_TYPES(__VA_ARGS__))
 
@@ -404,6 +416,7 @@ inline void deprecated_AT_DISPATCH_ALL_TYPES_AND_HALF_AND_COMPLEX() {}
   AT_DISPATCH_SWITCH(                                        \
       TYPE, NAME, AT_DISPATCH_CASE_QINT_AND_SUB_BYTE_TYPES(__VA_ARGS__))
 
+// 整数，浮点数 以及 ComplexDouble 和 ComplexFloat
 #define AT_DISPATCH_CASE_ALL_TYPES_AND_COMPLEX(...) \
   AT_DISPATCH_CASE_ALL_TYPES(__VA_ARGS__)           \
   AT_DISPATCH_CASE_COMPLEX_TYPES(__VA_ARGS__)
@@ -441,6 +454,7 @@ inline void deprecated_AT_DISPATCH_ALL_TYPES_AND_HALF_AND_COMPLEX() {}
       NAME,                                                                   \
       AT_DISPATCH_CASE_ALL_TYPES_AND2(SCALARTYPE1, SCALARTYPE2, __VA_ARGS__))
 
+// 所有数据类型和complex以及2个额外的类型
 #define AT_DISPATCH_CASE_ALL_TYPES_AND_COMPLEX_AND2(  \
     SCALARTYPE1, SCALARTYPE2, ...)                    \
   AT_DISPATCH_CASE_ALL_TYPES_AND_COMPLEX(__VA_ARGS__) \

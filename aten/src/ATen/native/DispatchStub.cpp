@@ -127,6 +127,7 @@ void* DispatchStubImpl::get_call_ptr(
   }
 }
 
+// 选择cpu实现，返回函数指针
 void* DispatchStubImpl::choose_cpu_impl(
   void *DEFAULT
 #ifdef HAVE_AVX512_CPU_DEFINITION

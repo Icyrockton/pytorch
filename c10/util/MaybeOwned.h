@@ -11,6 +11,7 @@ namespace c10 {
 /// MaybeOwnedTraits<T> describes how to borrow from T.  Here is how we
 /// can implement borrowing from an arbitrary type T using a raw
 /// pointer to const:
+// MaybeOwnedTraits<T>描述了如何从T借。下面是如何使用指向const的原始指针实现从任意类型T借位:
 template <typename T>
 struct MaybeOwnedTraitsGenericImpl {
   using owned_type = T;
@@ -54,7 +55,9 @@ struct MaybeOwnedTraits<std::shared_ptr<T>>
 
 /// A smart pointer around either a borrowed or owned T. When
 /// constructed with borrowed(), the caller MUST ensure that the
-/// borrowed-from argument outlives this MaybeOwned<T>. Compare to
+/// borrowed-from argument outlives this MaybeOwned<T>.
+/// 一个围绕借用或拥有的T的智能指针。使用borrow()构造时，调用者必须确保从某个参数借用的寿命超过这个MaybeOwned<T>。
+/// Compare to
 /// Rust's std::borrow::Cow
 /// (https://doc.rust-lang.org/std/borrow/enum.Cow.html), but note
 /// that it is probably not suitable for general use because C++ has
@@ -71,16 +74,16 @@ class MaybeOwned final {
     owned_type own_;
   };
 
-  /// Don't use this; use borrowed() instead.
+  /// 别用这个;  用 borrowed()         borrow_type是owned_type的指针类型
   explicit MaybeOwned(const owned_type& t)
       : isBorrowed_(true), borrow_(MaybeOwnedTraits<T>::createBorrow(t)) {}
 
-  /// Don't use this; use owned() instead.
+  /// 别用这个; 用owned()
   explicit MaybeOwned(T&& t) noexcept(
       std::is_nothrow_move_constructible<T>::value)
       : isBorrowed_(false), own_(std::move(t)) {}
 
-  /// Don't use this; use owned() instead.
+  /// 别用这个; 用owned()
   template <class... Args>
   explicit MaybeOwned(in_place_t, Args&&... args)
       : isBorrowed_(false), own_(std::forward<Args>(args)...) {}
@@ -92,6 +95,8 @@ class MaybeOwned final {
   // T*. Copying an owned T yields another owned T for safety: no
   // chains of borrowing by default! (Note you could get that behavior
   // with MaybeOwned<T>::borrowed(*rhs) if you wanted it.)
+  // 复制一个借来的东西会产生另一个原来的东西，就像复制一个拥有的T会产生另一个拥有的T一样，
+  // 出于安全考虑:默认情况下没有借贷链!(注意，如果你想要，你可以通过MaybeOwned<T>::borrow (rhs)获得该行为。)
   MaybeOwned(const MaybeOwned& rhs) : isBorrowed_(rhs.isBorrowed_) {
     if (C10_LIKELY(rhs.isBorrowed_)) {
       MaybeOwnedTraits<T>::assignBorrow(borrow_, rhs.borrow_);

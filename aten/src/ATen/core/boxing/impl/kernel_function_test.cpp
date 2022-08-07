@@ -120,7 +120,7 @@ bool was_called = false;
 void kernelWithoutOutput(const Tensor&) {
   was_called = true;
 }
-
+/* 检查是否调用了 was_called */
 TEST(OperatorRegistrationTest_FunctionBasedKernel, givenKernelWithoutOutput_whenRegistered_thenCanBeCalled) {
   auto registrar = RegisterOperators().op("_test::no_return(Tensor dummy) -> ()", RegisterOperators::options().kernel<decltype(kernelWithoutOutput), &kernelWithoutOutput>(DispatchKey::CPU));
 
@@ -682,7 +682,7 @@ TEST(OperatorRegistrationTest_FunctionBasedKernel, givenKernel_whenRegistered_th
 std::tuple<int64_t, Tensor> kernelForSchemaInference(Tensor arg1, int64_t arg2, const c10::List<Tensor>& arg3) {
   return {};
 }
-
+/* 检查schema是否相同 */
 TEST(OperatorRegistrationTest_FunctionBasedKernel, givenKernel_whenRegisteredWithoutSpecifyingSchema_thenInfersSchema) {
   auto registrar = RegisterOperators()
       .op("_test::no_schema_specified", RegisterOperators::options().catchAllKernel<decltype(kernelForSchemaInference), &kernelForSchemaInference>());

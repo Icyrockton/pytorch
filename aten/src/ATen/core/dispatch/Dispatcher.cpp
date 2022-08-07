@@ -54,7 +54,7 @@ c10::optional<OperatorHandle> Dispatcher::findOp(const OperatorName& overload_na
     if (found == operatorLookupTable.end()) {
       return c10::nullopt;
     }
-    return found->second;
+    return found->second; // 找到对应的 operator的OperatorHandle
   });
 }
 
@@ -105,7 +105,7 @@ OperatorHandle Dispatcher::findOrRegisterName_(const OperatorName& op_name) {
     return *found;
   }
 
-  operators_.emplace_back(OperatorName(op_name));
+  operators_.emplace_back(OperatorName(op_name));   /** 新的 OperatorDef */
   OperatorHandle handle(--operators_.end());
   operatorLookupTable_.write([&] (ska::flat_hash_map<OperatorName, OperatorHandle>& operatorLookupTable) {
     operatorLookupTable.emplace(op_name, handle);
@@ -146,7 +146,7 @@ void Dispatcher::deregisterLibrary_(const std::string& ns) {
   std::lock_guard<std::mutex> lock(mutex_);
   libraries_.erase(ns);
 }
-
+/* 注册operator的信息 */
 RegistrationHandleRAII Dispatcher::registerDef(FunctionSchema schema, std::string debug, std::vector<at::Tag> tags) {
   // we need a lock to avoid concurrent writes
   std::lock_guard<std::mutex> lock(mutex_);
@@ -154,6 +154,7 @@ RegistrationHandleRAII Dispatcher::registerDef(FunctionSchema schema, std::strin
   OperatorName op_name = schema.operator_name();
   auto op = findOrRegisterName_(op_name);
 
+  /* 重复性检查 */
   TORCH_CHECK(op.operatorDef_->def_count == 0, "Tried to register an operator (", schema, ") with the same name and overload name multiple times.",
                                                     " Each overload's schema should only be registered with a single call to def().",
                                                     " Duplicate registration: ", debug, ". Original registration: ", op.operatorDef_->op.debug());
@@ -192,6 +193,9 @@ void Dispatcher::deregisterDef_(const OperatorHandle& op, const OperatorName& op
   cleanup(op, op_name);
 }
 
+/**
+ *  注册一个kernel实现
+ */
 RegistrationHandleRAII Dispatcher::registerImpl(
   OperatorName op_name,
   c10::optional<DispatchKey> dispatch_key,
@@ -221,6 +225,9 @@ RegistrationHandleRAII Dispatcher::registerImpl(
   });
 }
 
+/*
+ * 取消注册kernel实现
+ */
 void Dispatcher::deregisterImpl_(const OperatorHandle& op, const OperatorName& op_name, c10::optional<DispatchKey> dispatch_key, impl::OperatorEntry::AnnotatedKernelContainerIterator handle) {
   std::lock_guard<std::mutex> lock(mutex_);
 

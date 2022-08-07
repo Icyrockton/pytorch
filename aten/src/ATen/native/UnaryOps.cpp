@@ -26,7 +26,7 @@ namespace at {
 
 namespace meta {
 
-// Unary float operations always produce floating point
+// Unary float operations always produce floating point     一元浮点和整数型浮点op的结果始终是float的
 // outputs for floating point and integral types
 // For complex inputs, the output type should be the same as input type.
 #define CREATE_UNARY_FLOAT_META_FUNC(func)                  \
@@ -89,7 +89,7 @@ TORCH_META_FUNC(polygamma)(int64_t n, const Tensor& self) {
   build_borrowing_unary_float_op(maybe_get_output(), self);
 }
 
-// These are normal unary ops that preserve dtype
+// 这些是保留dtype的一元操作      上面那个是保留整数的
 #define CREATE_UNARY_META_FUNC(func)                  \
   TORCH_META_FUNC(func) (const Tensor& self) {        \
     build_borrowing_unary_op(maybe_get_output(), self);   \
@@ -267,14 +267,13 @@ static inline Tensor unary_op_impl_float(const Tensor& self, Stub& stub, Args...
   return iter.output();
 }
 
-// An alternate version of unary_op_impl_out that follows the same pattern
-// for non-complex inputs, but returns a floating point tensor
-// for complex inputs by default.
+// unary_op_impl_out 的另一个版本，对于非复数的input遵循相同的方案，
+// 但默认情况下对于complex输入返回一个浮点张量。
 // Note: This is done by running the operation as usual and then copying the
 // operation's result to the expected result type.
 template <typename Stub>
 static inline Tensor& unary_op_impl_with_complex_to_float_out(Tensor& result, const Tensor& self, Stub& stub, bool promotes_integer_to_float) {
-    if (self.is_complex() && !result.is_complex()) {
+    if (self.is_complex() && !result.is_complex()) {    // 复数的情况
       // Checks if the corresponding float type can be cast to the desired dtype
       const auto float_type = c10::toRealValueType(self.scalar_type());
       TORCH_CHECK(canCast(float_type, result.scalar_type()),
@@ -323,7 +322,7 @@ static inline Tensor unary_op_impl_with_complex_to_float(const Tensor& self, Out
   return out_impl(result, self);
 }
 
-template <typename OutImpl>
+template <typename OutImpl> // 就地操作
 static inline Tensor& unary_op_impl_(Tensor& self, OutImpl& out_impl) {
   return out_impl(self, self);
 }

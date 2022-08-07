@@ -512,9 +512,10 @@ class SelectiveStr {
 /// implementations at dispatch keys.  Typically, a torch::Library
 /// is not allocated directly; instead it is created by the
 /// TORCH_LIBRARY() or TORCH_LIBRARY_IMPL() macros.
+/// 此对象提供用于定义operator和提供分派键实现的API。
+/// 通常，一个torch::Library不是直接分配的，而是由TORCH_LIBRARY()或TORCH_LIBRARY_IMPL()宏创建。
 ///
-/// Most methods on torch::Library return a reference to itself,
-/// supporting method chaining.
+/// torch::Library中的大多数方法都会返回对自身的引用，支持方法链式调用。
 ///
 /// ```
 /// // Examples:
@@ -581,9 +582,7 @@ class TORCH_API Library final {
   // messages from overloads, but at the same time you only need to write the
   // overload for any given argument type once.
 
-  /// Declare an operator with a schema, but don't provide any implementations
-  /// for it.  You're expected to then provide implementations using the
-  /// impl() method.  All template arguments are inferred.
+  /// 使用schema声明operator，但不要提供它的任何实现。然后需要使用impl()方法提供实现。所有模板参数都是推断出来的。
   ///
   /// \param raw_schema The schema of the operator to be defined.
   ///     Typically, this is a `const char*` string literal, but any type

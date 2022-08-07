@@ -30,7 +30,7 @@ public:
   }
 
 private:
-  std::function<void()> onDestruction_;
+  std::function<void()> onDestruction_; /* 析构函数 */
 };
 
 }

@@ -59,6 +59,7 @@ using is_instantiation_of_t = typename is_instantiation_of<Template, T>::type;
 namespace detail {
 /**
  * strip_class: helper to remove the class type from pointers to `operator()`.
+ * 消除类指针   Class::* 什么的不要了
  */
 
 template <typename T>
@@ -78,6 +79,8 @@ using strip_class_t = typename strip_class<T>::type;
 /**
  * Evaluates to true_type, iff the given class is a Functor
  * (i.e. has a call operator with some set of arguments)
+ *
+ * functor = 仿函数
  */
 
 template <class Functor, class Enable = void>

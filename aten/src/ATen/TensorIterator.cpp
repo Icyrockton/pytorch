@@ -179,10 +179,14 @@ TensorIteratorConfig& TensorIteratorConfig::declare_static_shape(IntArrayRef sha
 // we try to recover permutation that was applied to the inputs
 // by sorting the strides of the inputs. Precedence is given to the inputs in the order they were added,
 // and to permutations involving non-broadcasted dimensions
+// 我们使用以下算法来计算输出步长，如果提供了大小正确的输出，我们尊重它的步长，不改变它们。
+// 否则，如果提供的输出大小不正确或没有提供输出，
+// 我们试图通过排序input的步长来恢复应用于输入的排列。优先级给予输入添加的顺序，以及涉及非广播维度的排列
 // 1. we loop over inputs starting from the first
 // 2. for all inputs strides of broadcasted dimensions are set to 0, and 0 compares equal to anything. If one
 // of the dimensions being compared has a stride of 0, we move on to the next tensor to determine if
 // these dimensions need to be swapped.
+//    对于所有输入，广播维度的步长都被设置为0，并且0可以与任何值进行比较。如果一个被比较的维度的跨步为0，我们就转向下一个张量，以确定这些维度是否需要交换。
 // 3. strides of dimensions equal to 1 participate in sorting
 // 4. if 2 strides are equal and neither is 0, we try to break the tie by looking at the corresponding dimensions
 // of the tensor. Dimensions were permuted if, when iterating from the end, dimensions corresponding to the
@@ -747,7 +751,7 @@ void TensorIteratorBase::for_each(loop2d_t loop, int64_t grain_size) {
     return;
   } else if (numel < grain_size || at::get_num_threads() == 1) {
     return serial_for_each(loop, {0, numel});
-  } else {
+  } else {  // 并行化serial_for_each
     at::parallel_for(0, numel, grain_size, [&](int64_t begin, int64_t end) {
       serial_for_each(loop, {begin, end});
     });
@@ -1462,14 +1466,14 @@ void TensorIteratorBase::build(TensorIteratorConfig& config) {
   is_reduction_ = config.is_reduction_;
   enforce_linear_iteration_ = config.enforce_linear_iteration_;
 
-  // fill in operands_ based on configuration
+  // 根据config填充operands_
   populate_operands(config);
   // set is_output and is_read_write flags on appropriate tensors
   mark_outputs();
   // Check that the outputs have no internal overlap
   // and do not share memory with inputs.
   compute_mem_overlaps(config);
-  // Check that input dimensions are aligned correctly & compute outnames.
+  // 检查 input dimensions are aligned correctly & compute outnames.
   compute_names(config);
   // compute the broadcasted shape
   compute_shape(config);
@@ -1520,6 +1524,10 @@ void TensorIteratorBase::build(TensorIteratorConfig& config) {
 // The precondition for this function is that maybe_get_output() now
 // unconditionally returns a real Tensor (prior to output setting,
 // this function may return an undefined tensor.)
+// 这是结构化内核对set_output的实现。它实际上永远不会被直接调用;
+// 相反，TensorIteratorBase的一个子类将覆盖set_output来实际执行操作，
+// 然后调用TensorIteratorBase上的set_output来设置TI的元数据。
+// 这个函数的前提条件是现在可以无条件地返回一个真正的张量(在输出设置之前，这个函数可以返回一个未定义的张量)。
 void TensorIteratorBase::set_output_raw_strided(int64_t output_idx, IntArrayRef sizes, IntArrayRef strides, TensorOptions options, DimnameList names) {
   auto& op = operands_[output_idx];
   TORCH_INTERNAL_ASSERT_DEBUG_ONLY(output_idx < num_outputs_);

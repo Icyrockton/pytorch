@@ -221,10 +221,10 @@ struct BoxedKernelWrapper<
     OperatorKernel* functor,
     const OperatorHandle& opHandle,
     DispatchKeySet dispatchKeySet,
-    Args... args
+    Args... args  /* 未装箱的函数参数 */
   ) {
-    torch::jit::Stack stack = boxArgs<Args...>(std::forward<Args>(args)...);
-    (*boxed_kernel_func)(functor, opHandle, dispatchKeySet, &stack);
+    torch::jit::Stack stack = boxArgs<Args...>(std::forward<Args>(args)...);  /* 装箱参数 */
+    (*boxed_kernel_func)(functor, opHandle, dispatchKeySet, &stack);  /* 调用装箱的函数 */
 
     return guts::if_constexpr<!std::is_same<void, Result>::value>(
       [&] (auto delay_check) {

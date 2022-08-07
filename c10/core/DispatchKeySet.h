@@ -19,6 +19,7 @@ struct FunctionalityOffsetAndMask {
   // This mask needs to be big enough to mask all of the backend bits.
   // We probably don't ever want to have more than 16 backend bits, so uint16_t
   // should be enough.
+  // 这个掩码需要足够大才能掩码所有的backend位。我们可能不想有超过16个backend位，所以uint16_t应该足够了。
   uint16_t mask;
 };
 static_assert(
@@ -35,17 +36,24 @@ C10_ALWAYS_INLINE static const std::
   return offsets_and_masks_;
 }
 
-// A representation of a set of DispatchKeys. A DispatchKeySet contains both
-// "functionality" bits and "backend bits", and every tensor holds its own
-// DispatchKeySet. The Dispatcher implements multiple dispatch by grabbing the
+
+// 一组DispatchKeys的表示形式。DispatchKeySet包含“functionality”位和“backend bits”位，每个张量都拥有自己的DispatchKeySet。
+//
+// The Dispatcher implements multiple dispatch by grabbing the
 // keyset on every input tensor, or’ing them together, and dispatching to a
-// specific piece of functionality. The functionality bits are *ordered*. When
-// multiple functionality bits are set, we use the highest priority
-// functionality. Similarly, multiple backend bits can theoretically be set if
+// specific piece of functionality.
+// Dispatcher通过抓取每个输入张量上的keyset(或将它们放在一起)并分派到特定的功能块来实现多重分派。
+//
+// functionality位是有序的。当设置多个functionality位时，我们使用优先级最高的功能。
+//
+// Similarly, multiple backend bits can theoretically be set if
 // you call an operator with multiple tensors from difference devices (e.g. CPU
 // and CUDA), although support for mixed device dispatch is limited (the only
 // kernels that gracefully handle mixed device inputs for now are cuda kernels
 // that take in a scalar cpu tensor).
+// 类似地，如果你从不同的设备(例如CPU和CUDA)调用一个具有多个张量的操作符，
+// 理论上可以设置多个backend位，尽管对混合设备调度的支持是有限的
+// (目前唯一优雅地处理混合设备输入的内核是CUDA内核，它接收一个标量CPU张量)。
 
 // A representation of a set of DispatchKeys.  A tensor may have multiple
 // tensor type ids, e.g., a Variable tensor can also be a CPU tensor; the
@@ -56,6 +64,8 @@ C10_ALWAYS_INLINE static const std::
 // "what is the highest priority DispatchKey in the set"?  (The set itself is
 // not ordered; two sets with the same ids will always have the ids ordered in
 // the same way.)
+// 如上所述，dispatchkey是有序的;因此，我们可以问这样的问题:“集合中优先级最高的DispatchKey是什么?”
+// (集合本身是无序的;具有相同id的两个集合的id将始终以相同的方式排序。)
 //
 // Note [DispatchKeySet Internal Representation]
 // Internally, dispatch keys are packed into 64-bit DispatchKeySet objects
@@ -67,6 +77,7 @@ C10_ALWAYS_INLINE static const std::
 // directly to a bit? This is mostly because we have several types of
 // functionalities that different backends would like to customize. For example,
 // we have:
+// 首先:为什么我们有这个区别，为什么不将每个分派键直接映射到一个位?这主要是因为我们有几种不同的后端想要定制的功能类型。例如，我们有:
 // - "Dense":     CPU, CUDA, XLA, ... (~12 keys)
 // - "Sparse":    SparseCPU, SparseCUDA, ...
 // - "Quantized": QuantizedCPU, QuantizedCUDA, QuantizedXLA, ...
@@ -76,12 +87,11 @@ C10_ALWAYS_INLINE static const std::
 // directly to a bit in a bitset without dramatically increasing the size of the
 // bitset over time.
 //
-// The two enums (BackendComponent and DispatchKey) can be divided roughly into
-// 5 categories.
+// 这两个枚举(BackendComponent和DispatchKey)可以大致分为5类。
 //
 // (1) "Building block" keys
-//    (a) backends: jEverything in the BackendComponent enum (e.g. CPUBit,
-//    CUDABIt) (b) functionalities: (per-backend) functionality-bit DispatchKeys
+//    (a) backends: jEverything in the BackendComponent enum (e.g. CPUBit, CUDABIt)
+//    (b) functionalities: (per-backend) functionality-bit DispatchKeys
 //    (e.g. AutogradFunctionality, Sparse, Dense)
 // (2) "Runtime" keys
 //    (a) "non-customizable backends" (e.g. FPGA)
@@ -93,6 +103,8 @@ C10_ALWAYS_INLINE static const std::
 // (1) Building block keys always correspond to individual bits in a
 // DispatchKeySet. They can also be combined in a DispatchKeySet to form actual
 // runtime keys. e.g.
+//     Building block 键总是对应于DispatchKeySet中的单个bit。
+//     它们还可以组合在DispatchKeySet中以形成实际的runtime key。如。
 //     auto dense_cpu_ks = DispatchKeySet({DispatchKey::CPUBit,
 //     DispatchKey::Dense});
 //     // The keyset has the runtime dense-cpu key.
@@ -114,11 +126,13 @@ C10_ALWAYS_INLINE static const std::
 // Not every piece of functionality necessarily needs to be customizeable
 // per-backend, and not every backend necessarily needs to be able to customize
 // every type of functionality.
+// 不是每个functionality可以自定义不同的backend， 也不是每个backend可以实现不同的functionality
 //
 //
 // (2) Every runtime key corresponds directly to a slot in an operator's runtime
 // dispatch table, and you can directly register kernels to a runtime dispatch
 // key.
+// 每个运行时键直接对应操作符的运行时分派表中的一个槽，您可以直接将内核注册到运行时分派键。
 //
 // For per-backend functionalities like "Dense" or "AutogradFunctionality",
 // you can think of the corresponding runtime dispatch keys as "instances" of
@@ -178,6 +192,7 @@ class DispatchKeySet final {
   // must be explicit when they do this!
   constexpr DispatchKeySet(Raw, uint64_t x) : repr_(x) {}
 
+  /* 使用BackendComponent 创建DispatchKeySet  （低12位） */
   constexpr explicit DispatchKeySet(BackendComponent k) {
     if (k == BackendComponent::InvalidBit) {
       repr_ = 0;
@@ -188,12 +203,12 @@ class DispatchKeySet final {
 
   constexpr explicit DispatchKeySet(DispatchKey k) {
     if (k == DispatchKey::Undefined) {
-      // Case 1: handle Undefined specifically
+      // Case 1: 特别处理Undefined
       repr_ = 0;
     } else if (k <= DispatchKey::EndOfFunctionalityKeys) {
-      // Case 2: handle "functionality-only" keys
-      // These keys have a functionality bit set, but no backend bits
-      // These can technically be either:
+      // Case 2:  处理只有 "functionality-only" 的key
+      // 这些key有 functionality bit, 但没有 backend bits
+      // 严格来说，它们可以是:
       // - valid runtime keys (e.g. DispatchKey::AutogradOther,
       // DispatchKey::FuncTorchBatched, etc)
       // - "building block" keys that aren't actual runtime keys (e.g.
@@ -202,8 +217,8 @@ class DispatchKeySet final {
           << (num_backends + static_cast<uint8_t>(k) - 1);
       repr_ = functionality_val;
     } else if (k <= DispatchKey::EndOfRuntimeBackendKeys) {
-      // Case 3: "runtime" keys that have a functionality bit AND a backend bit.
-      // First compute which bit to flip for the functionality.
+      // Case 3: "runtime" keys 有 functionality bit 和  backend bit.
+      // First compute which bit to flip for the functionality. 首先计算functionality的位
       auto functionality_k = toFunctionalityKey(k);
       // The - 1 is because Undefined is technically a "functionality" that
       // doesn't show up in the bitset. So e.g. Dense is technically the second
@@ -211,7 +226,7 @@ class DispatchKeySet final {
       uint64_t functionality_val = 1ULL
           << (num_backends + static_cast<uint8_t>(functionality_k) - 1);
 
-      // then compute which bit to flip for the backend
+      // then compute which bit to flip for the backend       然后计算 backend的位
       // Case 4a: handle the runtime instances of "per-backend functionality"
       // keys For example, given DispatchKey::CPU, we should set:
       // - the Dense functionality bit
@@ -227,6 +242,7 @@ class DispatchKeySet final {
       // Technically it would be possible to add alias dispatch keys to a
       // DispatchKeySet, but the semantics are a little confusing and this
       // currently isn't needed anywhere.
+      // 别名key
       repr_ = 0;
     }
   }
@@ -258,7 +274,7 @@ class DispatchKeySet final {
       // https://www.internalfb.com/intern/skycastle/run/76561193669136035/artifact/actionlog.76561193742069401.stderr
       : repr_(backend_bits_to_repr(ks)) {}
 
-  // Test if a DispatchKey is in the set
+  // 检查这个set中是否包含DispatchKey
   inline bool has(DispatchKey t) const {
     TORCH_INTERNAL_ASSERT_DEBUG_ONLY(t != DispatchKey::Undefined);
     return has_all(DispatchKeySet(t));
@@ -299,15 +315,15 @@ class DispatchKeySet final {
               .repr_) == 0));
     return static_cast<bool>((repr_ & ks.repr_) != 0);
   }
-  // Test if DispatchKeySet is a superset of ks.
+  // 测试DispatchKeySet是否为ks的超集。
   bool isSupersetOf(DispatchKeySet ks) const {
     return (repr_ & ks.repr_) == ks.repr_;
   }
-  // Perform set union
+  // 并集
   constexpr DispatchKeySet operator|(DispatchKeySet other) const {
     return DispatchKeySet(repr_ | other.repr_);
   }
-  // Perform set intersection
+  // 交集
   constexpr DispatchKeySet operator&(DispatchKeySet other) const {
     return DispatchKeySet(repr_ & other.repr_);
   }
@@ -381,9 +397,12 @@ class DispatchKeySet final {
     return repr_;
   }
 
+  /**
+   * @return 返回最高有效位的 Functionality key
+   */
   DispatchKey highestFunctionalityKey() const {
     auto functionality_idx = indexOfHighestBit();
-    // This means that none of the functionality bits were set.
+    // functionality位没有设置
     if (functionality_idx < num_backends)
       return DispatchKey::Undefined;
     // The first num_backend bits in the keyset don't correspond to real
@@ -407,7 +426,7 @@ class DispatchKeySet final {
     return static_cast<BackendComponent>(backend_idx);
   }
 
-  // returns the DispatchKey of highest priority in the set.
+  // 返回集合中优先级最高的DispatchKey。
   DispatchKey highestPriorityTypeId() const {
     auto functionality_k = highestFunctionalityKey();
     if (isPerBackendFunctionalityKey(functionality_k)) {
@@ -417,10 +436,7 @@ class DispatchKeySet final {
     return functionality_k;
   }
 
-  // Returns the index of the most-significant bit in the keyset.
-  // This is used to as part of the calculation into the operator table to get:
-  // - the highest "functionality" bit in the keyset.
-  // - the highest "backend" bit in the keyset.
+  // 返回最高有效位
   uint8_t indexOfHighestBit() const {
     return 64 - llvm::countLeadingZeros(repr_);
   }
@@ -461,10 +477,13 @@ class DispatchKeySet final {
   // returns the index in the operator table of highest priority key in the the
   // keyset Note that we could in theory implement this using
   // highestPriorityTypeId(), but this code is very hotpath and we can do it
-  // faster without it.
+  //  // faster without it.
+  // 返回key set中最高优先级键所在操作符表中的索引注意，
+  // 理论上我们可以使用highestPriorityTypeId()来实现它，但是这段代码是非常热路径的，没有它我们可以做得更快。
+
   int getDispatchTableIndexForDispatchKeySet() const {
     auto functionality_idx =
-        DispatchKeySet(repr_ >> num_backends).indexOfHighestBit();
+        DispatchKeySet(repr_ >> num_backends).indexOfHighestBit();   // 54 - 14
     auto offset_and_mask = offsetsAndMasks()[functionality_idx];
     // Mask the functionality bits out first, then right-shift by 1.
     // right-shifting by 1 because everything is zero-indexed.
@@ -755,7 +774,8 @@ constexpr auto functorch_transforms_ks = DispatchKeySet(
 
 // This keyset has:
 // (1) the functionality bits corresponding to backends (dense, sparse,
-// quantized) (2) all of the backend bits set
+// quantized)
+// (2) all of the backend bits set
 constexpr DispatchKeySet backend_functionality_keys =
     DispatchKeySet({
         DispatchKey::Dense,
@@ -782,6 +802,7 @@ C10_API DispatchKeySet getRuntimeDispatchKeySet(DispatchKey t);
 
 // Resolve alias dispatch key to DispatchKeySet if applicable,
 // and chek if k is a part of that set
+// 将别名分派键解析为DispatchKeySet(如果适用)，并检查k是否是该集合的一部分
 C10_API bool runtimeDispatchKeySetHas(DispatchKey t, DispatchKey k);
 
 // Returns a DispatchKeySet of all backend keys mapped to Autograd dispatch key
@@ -847,6 +868,8 @@ inline DispatchKeySet getAutocastRelatedKeySetFromBackend(BackendComponent t) {
 // returns the "backend" DispatchKey of highest priority in the set.
 // This is basically like highestBackendKey(), except that we have some
 // "functionality" bits that correspond to backends (Sparse, Quantized)
+// 返回集合中优先级最高的“backend” DispatchKey。
+// 这基本上就像highestBackendKey()，除了我们有一些对应于后端(稀疏，量化)的“功能性”位。
 inline DispatchKey highestPriorityBackendTypeId(DispatchKeySet ks) {
   return (ks & backend_functionality_keys).highestPriorityTypeId();
 }

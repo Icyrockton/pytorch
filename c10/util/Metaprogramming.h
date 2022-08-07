@@ -53,7 +53,7 @@ struct infer_function_traits<Result(Args...)> {
 };
 
 template <typename T>
-using infer_function_traits_t = typename infer_function_traits<T>::type;
+using infer_function_traits_t = typename infer_function_traits<T>::type;  /* infer_function_traits_t用来获取 参数类型，返回参数类型 */
 
 /**
  * make_function_traits: creates a `function_traits` type given a Return type

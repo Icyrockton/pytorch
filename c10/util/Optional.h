@@ -753,7 +753,7 @@ class optional : private OptionalBase<T> {
     return TR2_OPTIONAL_ASSERTED_EXPRESSION(initialized(), contained_val());
   }
 
-  TR2_OPTIONAL_HOST_CONSTEXPR T& operator*() & {
+  TR2_OPTIONAL_HOST_CONSTEXPR T& operator*() & {    /* 返回其中的值 */
     assert(initialized());
     return contained_val();
   }

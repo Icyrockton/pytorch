@@ -382,6 +382,18 @@ void expectOutOfPlaceMultiUnboxedCallingWorks(const KernelFunction& func) {
 
 }
 
+TEST(KernelFunctionTest,my_test){
+  auto func = KernelFunction::makeFromBoxedFunction<&kernels::boxed_func_with_return>();
+  auto handle = kernels::makeDummyOperatorHandle();
+  auto stack = Stack({2,3});
+  auto tensor = at::ones({20,30});
+  tensor.add_(10);
+  std::cout << tensor << std::endl;
+  func.callBoxed(handle,c10::DispatchKeySet(c10::DispatchKey::CPU),&stack);
+  std::cout << stack.size() << std::endl;
+  std::cout << stack.size() << std::endl;
+}
+
 // functional, boxed calling
 
 TEST(KernelFunctionTest, givenBoxedFunction_withReturn_whenCallingBoxed_thenWorks) {
@@ -399,7 +411,7 @@ TEST(KernelFunctionTest, givenBoxedFunction_withMultiReturn_whenCallingBoxed_the
   kernels::expectBoxedCallingWithMultiReturnWorks(func);
 }
 
-// in/out, boxed calling
+// in/out, boxed calling        有tensor的test
 
 TEST(KernelFunctionTest, givenBoxedFunction_withInPlaceSignature_whenCallingBoxed_thenWorks) {
   KernelFunction func = KernelFunction::makeFromBoxedFunction<&kernels::boxed_func_for_inplace_op>();
@@ -450,7 +462,7 @@ TEST(KernelFunctionTest, givenBoxedFunction_withOutOfPlaceMultiSignature_whenCal
   kernels::expectOutOfPlaceMultiUnboxedCallingWorks(func);
 }
 
-// functors etc.
+// functors etc.  仿函数的测试
 
 TEST(KernelFunctionTest, givenUnboxedFunctor_withReturn_whenCallingBoxed_thenWorks) {
   KernelFunction func = KernelFunction::makeFromUnboxedFunctor<false, kernels::unboxed_functor_with_return>(std::unique_ptr<OperatorKernel>(std::make_unique<kernels::unboxed_functor_with_return>()));
@@ -471,7 +483,7 @@ TEST(KernelFunctionTest, givenUnboxedFunctor_withoutReturn_whenCallingUnboxed_th
   KernelFunction func = KernelFunction::makeFromUnboxedFunctor<false, kernels::unboxed_functor_without_return>(std::unique_ptr<OperatorKernel>(std::make_unique<kernels::unboxed_functor_without_return>()));
   kernels::expectUnboxedCallingWithoutReturnWorks(func);
 }
-
+// 下面是 unbox function的测试
 TEST(KernelFunctionTest, givenUnboxedFunction_withReturn_whenCallingBoxed_thenWorks) {
   KernelFunction func = KernelFunction::makeFromUnboxedFunction(TORCH_FN(kernels::unboxed_function_with_return));
   kernels::expectBoxedCallingWithReturnWorks(func);
@@ -491,7 +503,7 @@ TEST(KernelFunctionTest, givenUnboxedFunction_withoutReturn_whenCallingUnboxed_t
   KernelFunction func = KernelFunction::makeFromUnboxedFunction(TORCH_FN(kernels::unboxed_function_without_return));
   kernels::expectUnboxedCallingWithoutReturnWorks(func);
 }
-
+// 下面是 unbox runtime function的测试
 TEST(KernelFunctionTest, givenUnboxedRuntimeFunction_withReturn_whenCallingBoxed_thenWorks) {
   KernelFunction func = KernelFunction::makeFromUnboxedRuntimeFunction(&kernels::unboxed_function_with_return);
   kernels::expectBoxedCallingWithReturnWorks(func);
@@ -511,7 +523,7 @@ TEST(KernelFunctionTest, givenUnboxedRuntimeFunction_withoutReturn_whenCallingUn
   KernelFunction func = KernelFunction::makeFromUnboxedRuntimeFunction(&kernels::unboxed_function_without_return);
   kernels::expectUnboxedCallingWithoutReturnWorks(func);
 }
-
+// 下面是 lambda的测试
 TEST(KernelFunctionTest, givenUnboxedLambda_withReturn_whenCallingBoxed_thenWorks) {
   KernelFunction func = KernelFunction::makeFromUnboxedLambda(kernels::unboxed_lambda_with_return);
   kernels::expectBoxedCallingWithReturnWorks(func);
