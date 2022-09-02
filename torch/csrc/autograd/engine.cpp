@@ -71,8 +71,10 @@ inline bool should_run_in_cpu_ready_queue(c10::DeviceType device) {
 
 // Threads spawned by the engine are assigned a 'worker_device' specifying
 // what device they process work for. This variable is initialized at:
+// 由引擎产生的线程被分配一个'worker_device'，指定它们为哪个设备工作。这个变量初始化为:
 // 1. thread creation time for CUDA, XLA device threads, as they are
 //    spinning threads waiting for works on their device.
+//    线程创建时间为CUDA, XLA设备线程，因为他们正在旋转线程等待在他们的设备上工作。
 // 2. before the graph task execution for CPU threads, as for each
 //    backward call we use the caller thread to drive engine execution.
 // This is used when handling reentrant backwards calls;
@@ -96,6 +98,7 @@ static thread_local int total_depth = 0;
 
 // The current GraphTask being executed by this thread. This helps
 // queue_callback() to find the target GraphTask to append final callbacks.
+// 当前线程正在执行的GraphTask。
 C10_DEFINE_TLS_static(std::shared_ptr<GraphTask>, tls_current_graph_task);
 #define current_graph_task (tls_current_graph_task.get())
 
@@ -315,6 +318,7 @@ void Engine::decrement_non_reentrant_thread_count() {
   non_reentrant_device_thread_condvar_.notify_one();
 }
 
+// 这是在 std::thread里面调用，是新的线程
 void Engine::thread_init(
     int device,
     const std::shared_ptr<ReadyQueue>& ready_queue,
@@ -327,12 +331,9 @@ void Engine::thread_init(
 
   // Note [Allocating GPUs to autograd threads]
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  // What's our strategy here?  Originally, the autograd engine was written
-  // with only CUDA in mind.  We allocate one thread to handle all CPU
-  // operations, and a thread per CUDA device.
+  // 我们的策略是什么?最初，autograd引擎在编写时只考虑了CUDA。我们分配一个线程来处理所有的CPU操作，每个CUDA设备分配一个线程。
   //
-  // But what if we have OTHER devices?  There are two plausible
-  // strategies:
+  // 但如果我们有其他设备呢?这里有两种可行的策略:
   //
   //  - We can allocate threads equal to max(num_cuda_devices, num_xla_devices,
   //    ...) and colocate cuda device 0 with xla device 0
@@ -344,8 +345,8 @@ void Engine::thread_init(
   // better.
   set_device(device);
 
-  // initialize each device thread's thread local ready queue with the ready
-  // queue that is created before the thread initialization
+  // 用线程初始化之前创建的就绪队列初始化每个设备线程的线程本地就绪队列
+  // 初始化 local_ready_queue
   init_local_ready_queue(ready_queue);
 
   std::shared_ptr<GraphTask> graph_task = nullptr;
@@ -404,25 +405,28 @@ auto Engine::thread_main(const std::shared_ptr<GraphTask>& graph_task) -> void {
   // tasks (ex: device threads). When graph_task is non-null (ex: reentrant
   // backwards, user thread), this function is expected to exit once that
   // graph_task complete.
+  // 当graph_task为nullptr时，这是一个长时间运行的线程，它处理任务(例如:设备线程)。
+  // 当graph_task为非空时(例如:可重入的backward，用户线程)，这个函数将在graph_task完成后退出
 
 #ifdef USE_ROCM
   // Keep track of backward pass for rocblas.
   at::ROCmBackwardPassGuard in_backward;
 #endif
 
-  // local_ready_queue should already been initialized when we get into
-  // thread_main
+  // 当我们进入thread_main时，local_ready_queue应该已经初始化了
   TORCH_INTERNAL_ASSERT(local_ready_queue != nullptr);
   while (graph_task == nullptr || !graph_task->future_result_->completed()) {
     // local_graph_task represents the graph_task we retrieve from the queue.
     // The outer graph_task represents the overall graph_task we need to execute
     // for reentrant execution.
+    // local_graph_task表示我们从队列中检索的graph_task。
+    // 外层graph_task表示我们在可重入执行时需要执行的整体graph_task。
     std::shared_ptr<GraphTask> local_graph_task;
     {
       // Scope this block of execution since NodeTask is not needed after this
       // block and can be deallocated (release any references to grad tensors
       // as part of inputs_).
-      NodeTask task = local_ready_queue->pop();
+      NodeTask task = local_ready_queue->pop(); // 如果没有NodeTask会阻塞在这里
       // This will only work if the worker is running a non backward task
       // TODO Needs to be fixed this to work in all cases
       if (task.isShutdownTask_) {
@@ -431,8 +435,7 @@ auto Engine::thread_main(const std::shared_ptr<GraphTask>& graph_task) -> void {
       }
 
       if (!(local_graph_task = task.base_.lock())) {
-        // GraphTask for function is no longer valid, skipping further
-        // execution.
+        // GraphTask不再有效 跳过执行
         continue;
       }
 
@@ -457,6 +460,7 @@ auto Engine::thread_main(const std::shared_ptr<GraphTask>& graph_task) -> void {
                     "autograd::engine::evaluate_function: ",
                     task.fn_.get()->name()),
                 c10::ArrayRef<const c10::IValue>());
+            // 开始执行
             evaluate_function(
                 local_graph_task,
                 task.fn_.get(),
@@ -470,9 +474,9 @@ auto Engine::thread_main(const std::shared_ptr<GraphTask>& graph_task) -> void {
     }
 
     // Decrement the outstanding tasks.
-    --local_graph_task->outstanding_tasks_;
+    --local_graph_task->outstanding_tasks_; // 未完成的任务 -1   , push的时候任务+1
 
-    // Check if we've completed execution.
+    // 检查我们是否完成了执行。
     if (local_graph_task->completed()) {
       local_graph_task->mark_as_completed_and_run_post_processing();
 
@@ -786,6 +790,8 @@ void validate_outputs(
   }
 }
 
+// 这里调用了 Node的operator() , 也就是调用了算子...
+// 实际的导数函数，以及调用hook
 static variable_list call_function(
     std::shared_ptr<GraphTask>& graph_task,
     Node* func,
@@ -850,6 +856,7 @@ void Engine::evaluate_function(
   c10::OptionalStreamGuard parent_stream_guard{opt_parent_stream};
 
   // If exec_info_ is not empty, we have to instrument the execution
+  // 如果exec_info_不是空的，我们必须检测执行
   auto& exec_info_ = graph_task->exec_info_;
   if (!exec_info_.empty()) {
     auto& fn_info = exec_info_.at(func);
@@ -882,6 +889,7 @@ void Engine::evaluate_function(
   }
 
   int num_outputs = outputs.size();
+  // 如果输出的个数是0,没有Node需要执行了。。。
   if (num_outputs == 0) { // Note: doesn't acquire the mutex
     // Records leaf stream (if applicable)
     // See Note [Streaming backwards]
@@ -892,6 +900,7 @@ void Engine::evaluate_function(
     return;
   }
 
+  // 检查NaN值
   if (AnomalyMode::is_enabled()) {
     AutoGradMode grad_mode(false);
     for (const auto i : c10::irange(num_outputs)) {
@@ -906,8 +915,8 @@ void Engine::evaluate_function(
     }
   }
 
-  // Lock mutex for the accesses to GraphTask dependencies_, not_ready_ and
-  // cpu_ready_queue_ below
+  // 更新 GraphTask 的 dependencies_, not_ready_
+  // and cpu_ready_queue_ below
   std::lock_guard<std::mutex> lock(graph_task->mutex_);
   for (const auto i : c10::irange(num_outputs)) {
     auto& output = outputs[i];
@@ -940,6 +949,7 @@ void Engine::evaluate_function(
         }
       }
       // No buffers have been allocated for the function
+      // 没有为函数分配缓冲区
       InputBuffer input_buffer(next.function->num_inputs());
 
       // Accumulates into buffer
@@ -949,13 +959,14 @@ void Engine::evaluate_function(
 
       if (is_ready) {
         auto queue = ready_queue(cpu_ready_queue, input_buffer.device());
+        // 放入队列继续执行
         queue->push(
             NodeTask(graph_task, next.function, std::move(input_buffer)));
       } else {
         not_ready.emplace(next.function.get(), std::move(input_buffer));
       }
     } else {
-      // The function already has a buffer
+      // 函数已经有一个缓冲区
       auto& input_buffer = not_ready_it->second;
 
       // Accumulates into buffer
@@ -964,6 +975,7 @@ void Engine::evaluate_function(
           next.input_nr, std::move(output), opt_parent_stream, opt_next_stream);
       if (is_ready) {
         auto queue = ready_queue(cpu_ready_queue, input_buffer.device());
+        // 放入队列继续执行
         queue->push(
             NodeTask(graph_task, next.function, std::move(input_buffer)));
         not_ready.erase(not_ready_it);
@@ -997,6 +1009,7 @@ auto Engine::compute_dependencies(
 
   // Queue contains all nodes that will start propagating gradients.
   // We no longer have to expand functions that don't require grad.
+  // 队列包含将开始传播梯度的所有节点。我们不需要扩展  不需要grad的function
   auto& dependencies = task.dependencies_;
   while (!queue.empty()) {
     auto fn = queue.back();
@@ -1007,12 +1020,13 @@ auto Engine::compute_dependencies(
     if (might_use_cuda && !will_use_cuda) {
       will_use_cuda = fn->stream(c10::DeviceType::CUDA).has_value();
     }
+    // 遍历节点的所有edge
     for (const auto& edge : fn->next_edges()) {
       if (auto next_ptr = edge.function.get()) {
         dependencies[next_ptr] += 1;
         const bool was_inserted = seen.insert(next_ptr).second;
         if (was_inserted)
-          queue.push_back(next_ptr);
+          queue.push_back(next_ptr);  //  放入下一个节点
       }
     }
   }
@@ -1025,13 +1039,17 @@ auto Engine::compute_dependencies(
 }
 
 auto Engine::execute(
-    const edge_list& roots,
-    const variable_list& inputs,
+    const edge_list& roots, // 图的开始节点
+    const variable_list& inputs,  // grad_tensors那个参数，不知道是干嘛的
     bool keep_graph,
     bool create_graph,
     bool accumulate_grad,
-    const edge_list& outputs) -> variable_list {
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+    const edge_list& outputs) // 需要计算(累积)梯度的那些叶节点
+    -> variable_list {
+  /**
+   * execute有两件事  1、分析图，找到function之间的依赖
+   *                2、 创建Worker遍历图
+   */
   validate_outputs(
       roots, const_cast<variable_list&>(inputs), [](const std::string& msg) {
         return msg;
@@ -1058,23 +1076,25 @@ auto Engine::execute(
   init_local_ready_queue();
   bool not_reentrant_backward_call = worker_device == NO_DEVICE;
 
+  // 1. 创建GraphTask，保存了运行时的元数据
   auto graph_task = std::make_shared<GraphTask>(
       /* keep_graph */ keep_graph,
       /* create_graph */ create_graph,
       /* depth */ not_reentrant_backward_call ? 0 : total_depth + 1,
       /* cpu_ready_queue */ local_ready_queue);
 
-  // If we receive a single root, skip creating extra root node
+  // 如果只有一个根，则跳过创建额外的根节点
   bool skip_dummy_node = roots.size() == 1;
   auto graph_root = skip_dummy_node
       ? roots.at(0).function
       : std::make_shared<GraphRoot>(roots, inputs);
 
-  auto min_topo_nr = compute_min_topological_nr(outputs);
-  // Now compute the dependencies for all executable functions
+  auto min_topo_nr = compute_min_topological_nr(outputs); // 最小的拓扑数
+  // 现在计算所有可执行函数的依赖关系
   compute_dependencies(graph_root.get(), *graph_task, min_topo_nr);
 
   if (!outputs.empty()) {
+    // 这一步，填充 GraphTask::exec_info_ 信息
     graph_task->init_to_execute(
         *graph_root, outputs, accumulate_grad, min_topo_nr);
   }
@@ -1117,14 +1137,16 @@ c10::intrusive_ptr<at::ivalue::Future> Engine::execute_with_graph_task(
     const std::shared_ptr<GraphTask>& graph_task,
     std::shared_ptr<Node> graph_root,
     InputBuffer&& input_buffer) {
-  initialize_device_threads_pool();
+  initialize_device_threads_pool(); // 初始化线程池,创建新线程
   // Lock mutex for GraphTask.
   std::unique_lock<std::mutex> lock(graph_task->mutex_);
 
+  // 您会想知道如何确定应该执行任务的设备。  InputBuffer类有一个device()函数，返回非CPU的第一个设备
   auto queue = ready_queue(graph_task->cpu_ready_queue_, input_buffer.device());
 
   // worker_device == NO_DEVICE it's a CPU thread and it's trying to drive the
   // autograd engine with corresponding GraphTask, and its NOT a re-entrant call
+  // worker_device == NO_DEVICE是一个CPU线程，它试图用对应的GraphTask驱动autograd引擎，它不是一个可重入调用
   if (worker_device == NO_DEVICE) {
     // We set the worker_device to CPU_DEVICE only if worker_device was
     // previously NO_DEVICE. Setting it to CPU afterwards allow us to detect
@@ -1281,26 +1303,27 @@ auto Engine::start_device_threads() -> void {
     // Only record the number of devices for device that don't run on the
     // cpu ready queue.
     if (impl && !should_run_in_cpu_ready_queue(impl->type())) {
-      num_devices = std::max(num_devices, impl->deviceCount());
+      num_devices = std::max(num_devices, impl->deviceCount()); // 获取设备数
     }
   }
 
-  // If there are no device except cpu, no need to create worker threads
+  // 除cpu外没有其他设备，则不需要创建工作线程
   if (num_devices == 0) {
     return;
   }
 
   // Since we're about to create threads, forking is not possible anymore
+  // 因为我们要创建线程，所以fork是不可能的
   track_bad_autograd_forks();
 
-  // allocate one thread for every GPU device (but colocate GPUs of different
-  // types), and pre-allocate the device_ready_queues_ to ensure safe reading on
-  // it.
+
+  // 为每个GPU设备分配一个线程，并预分配 device_ready_queues_ 以确保对其进行安全读取。
   device_ready_queues_ = std::vector<std::shared_ptr<ReadyQueue>>(num_devices);
   for (auto& queue : device_ready_queues_) {
     queue = std::make_shared<ReadyQueue>();
   }
 
+  // 开启这么多的新线程
   for (const auto i : c10::irange(num_devices)) {
     std::thread t(&Engine::thread_init, this, i, device_ready_queues_[i], true);
     t.detach();
@@ -1378,6 +1401,11 @@ void GraphTask::init_to_execute(
   // that in the iterative version, when you are working with the current Node,
   // you are reponsible to update your parent's is_needed after all your
   // children have been updated.
+  // 填充exec_info，使需要被执行的节点具有  'exec_info[node].needed = true'
+  // 只有到 'outputs' 那些节点的路径才会被计算
+  // 下面的代码使用递归填充exec_info，但实际代码是迭代执行的。
+  // 请参考编号以查看实际代码的对应方式。需要注意的不同之处在于，在迭代版本中，当您使用当前节点时，
+  // 您有责任  在所有子节点都更新之后,更新父节点的is_needed。
   //
   // is_needed = {fn: True for fn in outputs}             # (0)
   // seen = {}

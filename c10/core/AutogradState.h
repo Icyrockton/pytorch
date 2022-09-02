@@ -8,6 +8,7 @@ namespace c10 {
 
 // Structure used to pack all the thread local boolean
 // flags used by autograd
+// 结构体用于打包autograd使用的所有线程本地布尔标记
 struct C10_API AutogradState {
   static AutogradState& get_tls_state();
   static void set_tls_state(AutogradState state);

@@ -32,12 +32,14 @@ const char* const TensorImpl::err_msg_tensor_metadata_change_not_allowed =
     "    with torch.no_grad():\n"
     "        x.set_(y)";
 
+// 设置 AutogradMetaInterface 有关信息
 at::Tensor& TensorImpl::mutable_grad() {
   if (!autograd_meta_)
     autograd_meta_ = impl::GetAutogradMetaFactory()->make();
   return autograd_meta_->mutable_grad();
 }
 
+// 返回梯度信息
 const at::Tensor& TensorImpl::grad() const {
   // Yes, I know this looks really weird.  But I don't really have a choice as
   // long as this function returns a const reference to Tensor.  I'm not
@@ -45,6 +47,9 @@ const at::Tensor& TensorImpl::grad() const {
   // is not so easy to fix right now because the mutable counterpart of
   // this function must keep working so that "x.grad() = ..." keeps working
   // (part of public API).
+  // 是的，我知道这看起来很奇怪。但是我没有别的选择只要这个函数返回一个对张量的常量引用。
+  // 我真的不确定我将如何以不同的方式设计这个API，但它不是那么容易修复现在，
+  // 因为这个函数的可变对等体必须保持工作，以便“x.g grad() =…”保持工作(公共API的一部分)。
   if (!autograd_meta_)
     return impl::GetAutogradMetaFactory()->undefined_tensor();
   return autograd_meta_->grad();
@@ -69,10 +74,12 @@ void TensorImpl::_set_fw_grad(
   autograd_meta_->set_fw_grad(new_grad, self, level, is_inplace_op);
 }
 
+// 析构函数
 TensorImpl::~TensorImpl() {
   destroy_pyobj_if_needed();
 }
 
+// 构造函数
 TensorImpl::TensorImpl(
     Storage&& storage,
     DispatchKeySet key_set,
@@ -88,6 +95,7 @@ TensorImpl::TensorImpl(
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // In most constructors for TensorImpl, you will see Python and
 // PythonTLSSnapshot keys are removed from the passed in DispatchKeySet.  Why?
+// 在TensorImpl的大多数构造函数中，你会看到Python和PythonTLSSnapshot键被从DispatchKeySet中移除。为什么?
 //
 // INVARIANT: Python and PythonTLSSnapshot dispatch keys are set iff PyObject
 // for the Tensor has a nontrivial __torch_dispatch__ implementation.
@@ -129,13 +137,13 @@ TensorImpl::TensorImpl(
     // NOLINTNEXTLINE(performance-move-const-arg)
     : TensorImpl({}, key_set, data_type, std::move(device_opt)) {}
 
-// NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
+// 最主要的构造函数 <<<<<< ------------------ ------------------- ------------------
 TensorImpl::TensorImpl(
     Storage&& storage,
     DispatchKeySet key_set,
     const caffe2::TypeMeta data_type,
     c10::optional<c10::Device> device_opt)
-    : storage_(std::move(storage)),
+    : storage_(std::move(storage)), // 移动构造函数
       pyobj_interpreter_(nullptr),
       pyobj_(nullptr),
       storage_offset_(0),
@@ -162,7 +170,7 @@ TensorImpl::TensorImpl(
   // See [Note: Python key removal]
   key_set = key_set - c10::python_ks;
 
-  // Inference tensor doesn't have autograd related keys.
+  // Inference tensor doesn't have autograd related keys. 推理张量没有 autograd 相关键。
   if (inference_mode) {
     // See Note [Expected TLS state in InferenceMode] for why we exclude
     // Autograd & ADInplaceOrView keys. Normally key_set only contains backend
@@ -176,6 +184,7 @@ TensorImpl::TensorImpl(
   }
 
   // Inference tensor doesn't have version counter.
+  // 推断张量没有版本计数器。
   if (!is_inference()) {
     version_counter_ = VariableVersion(/*version=*/0);
   }
@@ -187,6 +196,7 @@ TensorImpl::TensorImpl(
 void TensorImpl::HandleResize() {
   // If needed, we will free the data. the next mutable_data() call
   // will create the data storage.
+  // 如果需要，我们将释放数据。下一个mutable_data()调用将创建数据存储。
   bool reset_tensor = false;
   if (reserved_) {
     // If tensor is reserved then don't claim its memeory unless nbytes()
@@ -206,6 +216,7 @@ void TensorImpl::HandleResize() {
   }
 }
 
+// 计算内存布局是否是连续的
 bool TensorImpl::compute_contiguous() const {
   bool is_contiguous = true;
   if (is_empty())
@@ -723,6 +734,7 @@ void TensorImpl::ReserveSpace(int64_t outer_dim) {
   reserved_ = true;
 }
 
+// 这个操作和Resize差不多，但是item总数保持不变
 void TensorImpl::Reshape(const std::vector<int64_t>& dims) {
   TORCH_CHECK(
       is_contiguous_,

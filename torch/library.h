@@ -93,15 +93,19 @@ class class_;
 /// interact directly with this class, except via error messages: the
 /// constructors this function define the set of permissible "function"-like
 /// things you can bind via the interface.
+/// 表示实现操作符的c++函数。大多数用户不会直接与这个类交互，除了通过错误消息:
+/// 构造函数这个函数定义了一组允许的类似于“函数”的东西，你可以通过接口绑定。
 ///
 /// This class erases the type of the passed in function, but durably records
 /// the type via an inferred schema for the function.
+/// 这个类会擦除传入函数的类型，但是会通过函数的推断模式持久地记录该类型。
 class TORCH_API CppFunction final {
   // TODO: This is morally the same thing as KernelRegistrationConfig, but it's
   // opaque to the user.
 
  public:
   /// This overload accepts function pointers, e.g., `CppFunction(&add_impl)`
+  /// 接受函数指针，例如 `CppFunction(&add_impl)`
   template <typename Func>
   explicit CppFunction(
       Func* f,
@@ -116,6 +120,7 @@ class TORCH_API CppFunction final {
 
   /// This overload accepts compile time function pointers, e.g.,
   /// `CppFunction(TORCH_FN(add_impl))`
+  /// 接受编译时函数指针，例如 `CppFunction(TORCH_FN(add_impl))`
   template <typename FuncPtr>
   explicit CppFunction(
       FuncPtr f,
@@ -299,7 +304,7 @@ class TORCH_API CppFunction final {
   }
 
  private:
-  c10::optional<c10::DispatchKey> dispatch_key_;
+  c10::optional<c10::DispatchKey> dispatch_key_;    // 这个 func_ 的dispatch key
   c10::KernelFunction func_;
   c10::optional<c10::impl::CppSignature> cpp_signature_;
   std::unique_ptr<c10::FunctionSchema> schema_;
@@ -611,9 +616,8 @@ class TORCH_API Library final {
   /// \param raw_name_or_schema The schema of the operator to be
   ///   defined, or just the name of the operator if the schema is to be
   ///   inferred from `raw_f`.  Typically a `const char*` literal.
-  /// \param raw_f The C++ function that implements this operator.
-  ///   Any valid constructor of torch::CppFunction is accepted here;
-  ///   typically you provide a function pointer or lambda.
+  /// \param raw_f 实现此操作符的c++函数。这里接受torch::CppFunction的任何有效构造函数;
+  ///   通常，您需要提供一个函数指针或lambda。
   ///
   /// ```
   /// // Example:
@@ -800,12 +804,12 @@ class TORCH_API Library final {
 
  private:
   Kind kind_;
-  c10::optional<std::string> ns_;
-  c10::optional<c10::DispatchKey> dispatch_key_;
+  c10::optional<std::string> ns_;   // 这个library默认的name space
+  c10::optional<c10::DispatchKey> dispatch_key_;    // 这个library默认的dispatch key
   const char* file_;
   uint32_t line_;
 
-  std::vector<c10::RegistrationHandleRAII> registrars_;
+  std::vector<c10::RegistrationHandleRAII> registrars_; // 注册的算子
 
   friend class detail::TorchLibraryInit;
 
@@ -914,7 +918,11 @@ class TorchLibraryInit final {
 /// Macro for defining a function that will be run at static
 /// initialization time to define operator overrides for dispatch key
 /// `k` (must be an unqualified enum member of c10::DispatchKey) in
-/// namespace `ns` (must be a valid C++ identifer, no quotes).  Use this
+/// namespace `ns` (must be a valid C++ identifer, no quotes).
+/// 宏用于定义一个函数，该函数将在静态初始化时运行，在命名空间' ns '中为分派键' k '
+/// 定义操作符重载(必须是c10::DispatchKey的非限定enum成员)(必须是有效的c++标识符，不能有引号)。
+///
+/// Use this
 /// macro when you want to implement a preexisting set of custom
 /// operators on a new dispatch key (e.g., you want to provide CUDA
 /// implementations of already existing operators).  One common usage

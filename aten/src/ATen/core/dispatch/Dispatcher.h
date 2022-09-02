@@ -25,6 +25,7 @@ template<class FuncType> class TypedOperatorHandle;
  * Implement this interface and register your instance with the dispatcher
  * to get notified when operators are registered or deregistered with
  * the dispatcher.
+ * 实现这个接口并向调度程序注册实例，以便在向调度程序注册或注销操作符时获得通知。
  *
  * NB: registration events only occur when a 'def' occurs; we don't trigger
  * on 'impl' or 'fallback' calls.
@@ -46,6 +47,7 @@ class SchemaRegistrationHandleRAII;
  * Top-level dispatch interface for dispatching via the dynamic dispatcher.
  * Most end users shouldn't use this directly; if you're trying to register
  * ops look in op_registration
+ * 顶层调度接口，用于通过动态调度程序进行调度。大多数终端用户不应该直接使用它;如果你想注册操作，在 op_registration 中查找
  */
 class TORCH_API Dispatcher final {
 private:
@@ -331,6 +333,7 @@ public:
   }
 
 
+  // dump分派表
   std::string dumpComputedTable() const {
     return operatorDef_->op.dumpComputedTable();
   }

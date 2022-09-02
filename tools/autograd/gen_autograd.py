@@ -1,6 +1,5 @@
 """
-To run this file by hand from the root of the PyTorch
-repository, run:
+要从PyTorch存储库的根目录手动运行此文件，请执行以下命令:
 
 python -m tools.autograd.gen_autograd \
        build/aten/src/ATen/Declarations.yaml \
@@ -14,13 +13,13 @@ generated.  In the full build system, OUTPUT_DIR is
 torch/csrc/autograd/generated/
 """
 
-# gen_autograd.py generates C++ autograd functions and Python bindings.
+# gen_autograd.py生成c++ autograd函数和Python绑定。
 #
 # It delegates to the following scripts:
 #
-#  gen_autograd_functions.py: generates subclasses of torch::autograd::Node
-#  gen_variable_type.py: generates VariableType.h which contains all tensor methods
-#  gen_python_functions.py: generates Python bindings to THPVariable
+#  gen_autograd_functions.py: 生成torch::autograd::Node的子类
+#  gen_variable_type.py: 生成包含所有张量方法的VariableType.h
+#  gen_python_functions.py: 生成到THPVariable的Python绑定
 #
 
 import argparse
@@ -58,7 +57,7 @@ def gen_autograd(
         os.path.join(autograd_dir, "derivatives.yaml"), native_functions_path, tags_path
     )
 
-    template_path = os.path.join(autograd_dir, "templates")
+    template_path = os.path.join(autograd_dir, "templates")     # 模板在 tools/autograd/templates 下面
 
     native_funcs = parse_native_yaml(native_functions_path, tags_path).native_functions
     fns = list(
@@ -73,7 +72,7 @@ def gen_autograd(
         NativeFunctionWithDifferentiabilityInfo
     ] = match_differentiability_info(fns, differentiability_infos)
 
-    # Generate VariableType.h/cpp
+    # 生成 VariableType.h/cpp             模板在 tools/autograd/templates 下面
     if not disable_autograd:
         gen_variable_type(
             out, native_functions_path, tags_path, fns_with_diff_infos, template_path

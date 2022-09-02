@@ -60,6 +60,9 @@ namespace caffe2 {
  * You need to register your types using CAFFE_KNOWN_TYPE(MyType) to be able to
  * use TypeIdentifier with custom types. This is for example used to store the
  * dtype of tensors.
+ * 类型id是给定c++类型的唯一id。
+ * 您需要使用CAFFE_KNOWN_TYPE(MyType)来注册您的类型，以便能够对自定义类型使用TypeIdentifier。
+ * 这是一个用来存储dtype张量的例子。
  */
 class C10_API TypeIdentifier final
     : public at::IdWrapper<TypeIdentifier, c10::util::type_index> {
@@ -114,6 +117,7 @@ namespace detail {
 // This struct holds the actual type information. There will be
 // one allocated per type. TypeMeta objects will then point to the struct
 // instance for the type they're configured for.
+// 这个结构包含实际的类型信息。每个类型将分配一个。TypeMeta对象将指向它们所配置的类型的结构实例。
 struct TypeMetaData final {
   using New = void*();
   using PlacementNew = void(void*, size_t);
@@ -229,7 +233,7 @@ inline constexpr TypeMetaData::New* _PickNew() {
 }
 
 /**
- * Typed copy function for classes.
+ * 复制函数
  */
 template <typename T>
 inline void _Copy(const void* src, void* dst, size_t n) {
@@ -270,7 +274,7 @@ inline constexpr TypeMetaData::Copy* _PickCopy() {
 }
 
 /**
- * Destructor for non-fundamental types.
+ * 非基本类型的析构函数。
  */
 template <typename T>
 inline void _PlacementDelete(void* ptr, size_t n) {
@@ -302,13 +306,8 @@ class _Uninitialized final {};
 
 } // namespace detail
 
-//
-// note: this is outside TypeMeta bc gcc seems to have trouble
-// with scalarTypeItemSizes as a constexpr static member used by
-// a public inline instance method
-//
 
-// item sizes for TypeMeta::itemsize() fast path
+// 每个不同种类型dtype的item大小    比如ScalarType::Byte,ScalarType::Char一字节
 static constexpr uint8_t scalarTypeItemSizes[NumScalarTypes] = {
 #define SCALAR_TYPE_SIZE(T, name) sizeof(T),
     AT_FORALL_SCALAR_TYPES_WITH_COMPLEX_AND_QINTS(SCALAR_TYPE_SIZE)
@@ -321,6 +320,8 @@ static constexpr uint8_t scalarTypeItemSizes[NumScalarTypes] = {
  * as a blob, or the data type of a tensor, with a unique run-time id. It also
  * stores some additional data such as the item size and the name of the type
  * for run-time inspection.
+ * TypeMeta是一个瘦类，它允许我们使用惟一的运行时id存储容器的类型，如blob或张量的数据类型。
+ * 它还存储一些额外的数据，如item大小和用于运行时检查的类型名称。
  */
 class C10_API TypeMeta final {
  public:
@@ -336,12 +337,12 @@ class C10_API TypeMeta final {
   TypeMeta() noexcept;
 
   /**
-   * Copy constructor.
+   * 复制构造函数
    */
   TypeMeta(const TypeMeta& src) noexcept = default;
 
   /**
-   * Assignment operators.
+   * 赋值运算符
    */
   TypeMeta& operator=(const TypeMeta& src) noexcept = default;
 
@@ -466,7 +467,7 @@ class C10_API TypeMeta final {
   }
 
   /**
-   * convert ScalarType enum values to TypeMeta handles
+   * 将 ScalarType 转换成 TypeMeta
    */
   static inline caffe2::TypeMeta fromScalarType(ScalarType scalar_type) {
     const auto index = static_cast<uint16_t>(scalar_type);

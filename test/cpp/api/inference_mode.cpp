@@ -19,8 +19,7 @@ torch::Tensor view_op(torch::Tensor& x) {
 }
 
 /*
-  Only the following combos of Autograd & ADInplaceOrView keys on tensors are
-  valid:
+  只有以下Autograd和ADInplaceOrView键的组合是有效的:
     - Autograd=true, ADInplaceOrView=true (normal tensor)
     - Autograd=false, ADInplaceOrView=false (inference tensor)
   Tensors created in InferenceMode are mostly inference tensors. The only

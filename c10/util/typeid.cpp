@@ -29,7 +29,7 @@ C10_EXPORT void _ThrowRuntimeTypeLogicError(const string& msg) {
 // see TypeMeta::addTypeMetaData
 std::atomic<uint16_t> TypeMeta::nextTypeIndex(NumScalarTypes);
 
-// fixed length array of TypeMetaData instances
+// 固定大小的TypeMetaData数组实例
 detail::TypeMetaData* TypeMeta::typeMetaDatas() {
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
   static detail::TypeMetaData instances[MaxTypeIndex + 1] = {

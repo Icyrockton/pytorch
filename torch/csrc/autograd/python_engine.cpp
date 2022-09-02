@@ -164,6 +164,7 @@ c10::intrusive_ptr<at::ivalue::Future> PythonEngine::execute_with_graph_task(
 PyObject* THPEngineClass = nullptr;
 
 // Implementation of torch._C._EngineBase.run_backward
+// Python调用backward()或者grad()后，到这里来运行C++
 PyObject* THPEngine_run_backward(
     PyObject* self,
     PyObject* args,
@@ -228,12 +229,12 @@ PyObject* THPEngine_run_backward(
       "please call backward() outside torch.vmap or instead use "
       "torch.autograd.grad inside torch.vmap");
 
-  edge_list roots;
+  edge_list roots;  // 有多少个root节点，一般都是一个（图遍历的起始）
   roots.reserve(num_tensors);
   variable_list grads;
   grads.reserve(num_tensors);
   for (const auto i : c10::irange(num_tensors)) {
-    PyObject* _tensor = PyTuple_GET_ITEM(tensors, i);
+    PyObject* _tensor = PyTuple_GET_ITEM(tensors, i);   // tensors 列表中包含了backward pass开始的地方
     THPUtils_assert(
         THPVariable_Check(_tensor),
         "element %d of tensors "
@@ -249,7 +250,7 @@ PyObject* THPEngine_run_backward(
         " is being vmapped over). Please "
         "call autograd.grad() outside torch.vmap or file a bug report "
         "with your use case.")
-    auto gradient_edge = torch::autograd::impl::gradient_edge(variable);
+    auto gradient_edge = torch::autograd::impl::gradient_edge(variable);  // 构造这个Edge
     THPUtils_assert(
         gradient_edge.function,
         "element %d of tensors does not require grad and does not have a grad_fn",
@@ -279,8 +280,8 @@ PyObject* THPEngine_run_backward(
     }
   }
 
-  std::vector<Edge> output_edges;
-  if (inputs != nullptr) {
+  std::vector<Edge> output_edges; // 处理inputs这个参数，inputs代表需要计算gradient的那些叶节点
+  if (inputs != nullptr) {  // 以在计算结束时在指定的张量中累积梯度
     int num_inputs = PyTuple_GET_SIZE(inputs);
     output_edges.reserve(num_inputs);
     for (const auto i : c10::irange(num_inputs)) {
@@ -330,6 +331,7 @@ PyObject* THPEngine_run_backward(
     auto& engine = python::PythonEngine::get_python_engine();
     outputs = engine.execute(
         roots, grads, keep_graph, create_graph, accumulate_grad, output_edges);
+    /**  开始遍历图 **/
   }
 
   if (!backward_api_called && inputs != nullptr) {

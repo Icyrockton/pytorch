@@ -9,13 +9,9 @@
 
 namespace c10 {
 
-// Semantically, each value of BackendComponent identifies a "backend" for our
-// dispatch. Some functionalities that we may dispatch to are allowed to
-// register different handlers for each backend. The BackendComponent is then
-// used to figure out which backend implementation to dispatch to.
 //
 // 从语义上说，BackendComponent的每个值都为我们的分派标识了一个“后端”。
-// 我们可以分派的一些功能允许为每个后端注册不同的处理程序。然后使用BackendComponent来确定要分派到哪个后端实现。
+// 我们可以分派的一些功能，允许为每个后端注册不同的处理程序。然后使用BackendComponent来确定要分派到哪个后端实现。
 
 // In implementation terms, the backend component identifies a specific "bit" in
 // a DispatchKeySet. The bits in the DispatchKeySet are split between the bottom
@@ -36,7 +32,7 @@ enum class BackendComponent : uint8_t {
 
   // A "backend" is colloquially used to refer to handlers for dispatch
   // which actually implement the numerics of an operation in question.
-  // “后端”通常指的是分派的处理程序，它实际实现了相关操作的数值。
+  // “后端”通常指的是分派的处理程序，它实际实现了相关op的实际操作。
   //
   // Due to the nature of the enum, these backends are specified in
   // an ordered way, but for most backends this order is not semantically
@@ -74,9 +70,12 @@ enum class BackendComponent : uint8_t {
   LazyBit,
   // A meta tensor is a tensor without any data associated with it.  (They
   // have also colloquially been referred to as tensors on the "null" device).
+  // 元张量是一个没有任何数据关联的张量。(它们也被通俗地称为“null”设备上的张量)。
   // A meta tensor can be used to dry run operators without actually doing any
   // computation, e.g., add on two meta tensors would give you another meta
   // tensor with the output shape and dtype, but wouldn't actually add anything.
+  // 一个元张量可以用来干运算，而不需要实际做任何计算，
+  // 例如，将两个元张量相加会得到另一个具有输出形状和dtype的元张量，但实际上不会添加任何东西。
   MetaBit,
   PrivateUse1Bit,
   PrivateUse2Bit,
@@ -102,8 +101,9 @@ enum class BackendComponent : uint8_t {
 // key.)
 // 较高位的索引 优先调度处理(因为我们在提取最高优先级的调度键时“计算前导零”)。
 //
-// Note [DispatchKey Classification]
+// Note [DispatchKey分类]
 // ***************************这个enum实际上包含几种类型的key，下面会详细说明: ******************************
+// QA: 什么叫 functionalities？  Dense,Sparse, 这些叫functionalities
 // (1) non-customizable backends (e.g. FPGA)
 // (2) non-customizable functionalities (e.g. Functionalize)
 // (3) functionalized that are customizable per backend (e.g. Dense, Sparse, AutogradFunctionality)
@@ -115,7 +115,7 @@ enum class BackendComponent : uint8_t {
 // Of the categories above, it's important to note:
 // 在上述类别中，需要注意的是:
 // (a) which keys are assigned individual bits in a DispatchKeySet
-//     DispatchKeySet中哪些键被分配到单独的位
+//     DispatchKeySet中的哪些键被分配到单独的位
 //
 // (b) which keys are assigned individual slots in the runtime operator table
 // ("Runtime keys")
@@ -130,9 +130,6 @@ enum class BackendComponent : uint8_t {
 enum class DispatchKey : uint16_t {
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~ UNDEFINED ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
-  // This is not a "real" functionality, but it exists to give us a "nullopt"
-  // element we can return for cases when a DispatchKeySet contains no elements.
-  // You can think a more semantically accurate definition of DispatchKey is:
   // 这不是一个“真正的”functionality，但它的存在是为了给我们一个“nullopt”元素，
   // 当DispatchKeySet不包含任何元素时，我们可以返回它。你可以认为DispatchKey在语义上更准确的定义是:
   //
@@ -235,6 +232,8 @@ enum class DispatchKey : uint16_t {
   // have any "tensor" arguments.  In this case, a BackendSelect function
   // can be registered to implement the custom determination of the
   // correct backend.
+  // 在某些情况下，函数的正确后端是什么并不是很明显，因为所讨论的函数没有任何“tensor”参数。
+  // 在这种情况下，可以注册BackendSelect函数来实现正确后端的自定义确定。
   BackendSelect,
 
   Python,
@@ -323,17 +322,29 @@ enum class DispatchKey : uint16_t {
   // constructed by the output, and otherwise defers to the backend to
   // actually do the numeric computation.  Autograd contains
   // the bulk of this logic.
+  // 所有后端都是无关的autograd;
+  // Autograd作为发生在所有后端之上的层次来进行处理。
+  // 它检查所有输入的自动的元数据，确定输出应该构造什么元数据，然后让后端执行实际的数值计算。Autograd包含这个逻辑的大部分
 
   // Autograd is now an alias dispatch key which by default maps to all
   // backend-specific autograd keys.
   // Backend-specific allow backends to override the default kernel registered
   // to Autograd key as needed.
+  // Autograd现在是一个别名分派键，默认情况下映射到所有后端特定的Autograd键。
+  // 后端特定的允许后端根据需要覆盖注册到Autograd键的默认内核。
+  //
   // For example, XLA wants to define autograd for einsum directly.
   // Registering a custom autograd implementation at the XLA key won't work
   // because we process Autograd before XLA.  This key has higher priority and
   // gets processed first.  You generally should NOT redispatch after handling
   // autograd here (since that would result in execution of the Autograd
-  // operator, which you're trying to skip).  In AutogradXLA implementations,
+  // operator, which you're trying to skip).
+  // 例如，XLA希望直接为einsum定义autograd。
+  // 在XLA键上注册一个自定义autograd实现是行不通的，
+  // 因为我们在XLA之前处理autograd。此键具有更高的优先级，并优先处理。
+  // 在处理autograd之后，通常不应该重新分派(因为这将导致执行autograd操作符，这是您试图跳过的)。
+  //
+  // In AutogradXLA implementations,
   // you are responsible for handling autograd yourself, or deferring to other
   // operators which support autograd.
 
@@ -341,6 +352,8 @@ enum class DispatchKey : uint16_t {
   // reserved user-defined backends. All other in-tree backends share the
   // AutogradOther key. We can add specific autograd key for those backends
   // upon request.
+  // 目前我们只有后端特定的CPU/CUDA/XLA和保留用户自定义后端autograd键。
+  // 所有其他树中的后端共享AutogradOther。我们可以根据要求为那些后端添加特定的autograd键。
   AutogradOther,
 
   // See [Note: Per-Backend Functionality Dispatch Keys]
@@ -369,15 +382,16 @@ enum class DispatchKey : uint16_t {
   // There are a number of alternative modes which may want to handle before
   // autograd; for example, error checking, tracing, profiling or vmap.  They
   // go here.
+  // 有许多其他的模式，在autograd之前处理;例如，错误检查、跟踪、性能分析或vmap。
 
   FuncTorchBatched, // See Note [Out-of-tree vmap+grad prototype]
   FuncTorchVmapMode, // See Note [Out-of-tree vmap+grad prototype]
 
-  // This is the dispatch key for BatchedTensorImpl, which is used to implement
-  // batching rules for vmap.
+  // 这是 BatchedTensorImpl 的分派键，用于实现vmap的批处理规则。
   Batched,
 
   // When we are inside a vmap, all tensors dispatch on this key.
+  // 当我们在vmap中，所有张量都分配到这个键上。
   // See Note: [DispatchKey::VmapMode usage] for more details.
   VmapMode,
 
@@ -394,6 +408,7 @@ enum class DispatchKey : uint16_t {
   PythonTLSSnapshot,
 
   // This key should be at the very top of the dispatcher
+  // 这个key位于Dispatcher的最顶端
   FuncTorchDynamicLayerFrontMode, // See Note [Out-of-tree vmap+grad prototype]
 
   // TESTING: This is intended to be a generic testing tensor type id.
@@ -638,7 +653,7 @@ constexpr bool isAliasDispatchKey(DispatchKey k) {
 //      而“SparseCPU”、“SparseCUDA”等都映射到运行时操作符表中的单个槽。
 //
 // DispatchKey是否是每个backend都有的 (CPU,SparseCPU,QuantizedCPU, AutogradCPU)
-constexpr bool isPerBackendFunctionalityKey(DispatchKey k) {
+constexpr bool isPerBackendFunctionalityKey(DispatchKey k) {  // 每个后端都有的功能键，Dense,Quantized....
   if (k == DispatchKey::Dense || k == DispatchKey::Quantized ||
       k == DispatchKey::Sparse || k == DispatchKey::AutogradFunctionality ||
       k == DispatchKey::NestedTensor) {
@@ -687,6 +702,7 @@ constexpr uint8_t numPerBackendFunctionalityKeys() {
 constexpr uint16_t num_runtime_entries = 8;
 #else
 /*
+ * 运行时键
  * Dense | Quantized |  Sparse |  AutogradFunctionality |  NestedTensor
  * 这5个functionality 再乘以 后端的个数(13)  得到per-backend的个数
  * 再加上不能自定义的functionality

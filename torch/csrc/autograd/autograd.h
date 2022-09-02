@@ -6,6 +6,7 @@ namespace torch {
 namespace autograd {
 
 /// Computes the sum of gradients of given tensors with respect to graph leaves.
+/// 计算给定张量相对于图叶的梯度之和。
 ///
 /// The graph is differentiated using the chain rule. If any of ``tensors``
 /// are non-scalar (i.e. their data has more than one element) and require
@@ -19,8 +20,9 @@ namespace autograd {
 ///
 /// This function accumulates gradients in the leaves - you might need to zero
 /// them before calling it.
+/// 这个函数在叶子中累积梯度—在调用它之前，您可能需要将它们归零。
 ///
-/// \param tensors Tensors of which the derivative will be computed.
+/// \param tensors Tensors of which the derivative will be computed.    要计算导数的那些张量
 /// \param grad_tensors The "vector" in the Jacobian-vector product, usually
 /// gradients
 ///     w.r.t. each element of corresponding tensors. `torch::Tensor()` values
@@ -92,6 +94,8 @@ namespace forward_ad {
 /// be used to call into the other functions below. This API supports entering a
 /// new level before the previous one is exited. We call them nested forward AD
 /// levels. These can be used to compute higher order derivatives.
+/// 创建一个新的双级别并返回其索引。然后应该使用这个级别的索引来调用下面的其他函数。
+/// 此API支持在退出前一个级别之前进入一个新的级别。我们称之为嵌套的前向AD级别。这些可以用来计算高阶导数。
 TORCH_API uint64_t enter_dual_level();
 
 /// Exits the given level. This will clear up all the gradients from this level
@@ -99,6 +103,8 @@ TORCH_API uint64_t enter_dual_level();
 /// Tensors again. This function can only be used to exit the innermost nesting
 /// level and so exiting must happen in reverse order compared to the entering
 /// that was done with the function above.
+/// 退出给定级别。这将清除这一层的所有梯度，所有在这一层有梯度的对偶张量将再次变成正则张量。
+/// 此函数只能用于退出最内层嵌套，因此退出的顺序必须与使用上述函数进入的顺序相反。
 TORCH_API void exit_dual_level(uint64_t level);
 
 } // namespace forward_ad

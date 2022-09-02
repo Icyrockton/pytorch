@@ -149,7 +149,7 @@ AutogradMeta* materialize_autograd_meta(const at::TensorBase& self) {
       "cannot call materialize_autograd_meta() on undefined tensor");
   auto p = self.unsafeGetTensorImpl();
   if (!p->autograd_meta()) {
-    p->set_autograd_meta(std::make_unique<AutogradMeta>());
+    p->set_autograd_meta(std::make_unique<AutogradMeta>()); // 设置 Tensor里面的AutogradMeta数据结构
   }
   return get_autograd_meta(self);
 }
@@ -270,6 +270,7 @@ std::shared_ptr<Node> grad_accumulator(const Variable& self) {
   c10::raw::intrusive_ptr::incref(self.unsafeGetTensorImpl());
   auto intrusive_from_this =
       c10::intrusive_ptr<at::TensorImpl>::reclaim(self.unsafeGetTensorImpl());
+  // 这里创建了新的AccumulateGrad
   result = std::make_shared<AccumulateGrad>(
       Variable(std::move(intrusive_from_this)));
   autograd_meta->grad_accumulator_ = result;
@@ -283,6 +284,8 @@ Edge gradient_edge(const Variable& self) {
   // nodes get suppressed in some situations, see "suppress gradient
   // accumulation" below. Note that only variables which have `requires_grad =
   // True` can have gradient accumulators.
+  // 如果grad_fn为空(就像叶节点的情况一样)，我们将梯度函数解释为一个梯度累加器，它将把它的输入累加到变量的grad属性中。
+  // 这些节点在某些情况下会被抑制，参见下面的“抑制梯度积累”。注意，只有具有' requires_grad = True '的变量才能有梯度累加器。
   if (const auto& gradient = self.grad_fn()) {
     return Edge(gradient, self.output_nr());
   } else {

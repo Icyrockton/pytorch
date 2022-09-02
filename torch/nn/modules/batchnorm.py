@@ -39,16 +39,19 @@ class _NormBase(Module):
         factory_kwargs = {'device': device, 'dtype': dtype}
         super(_NormBase, self).__init__()
         self.num_features = num_features
-        self.eps = eps
+        self.eps = eps      # eps是加到分母上，避免除0
         self.momentum = momentum
         self.affine = affine
         self.track_running_stats = track_running_stats
+
+        # affine 添加了一个仿射变换，可以学习的参数
         if self.affine:
             self.weight = Parameter(torch.empty(num_features, **factory_kwargs))
             self.bias = Parameter(torch.empty(num_features, **factory_kwargs))
         else:
             self.register_parameter("weight", None)
             self.register_parameter("bias", None)
+
         if self.track_running_stats:
             self.register_buffer('running_mean', torch.zeros(num_features, **factory_kwargs))
             self.register_buffer('running_var', torch.ones(num_features, **factory_kwargs))

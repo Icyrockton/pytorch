@@ -224,10 +224,11 @@ public:
   static KernelFunction makeFromUnboxedFunction(FuncPtr);
 
   /**
-   * Create a KernelFunction from an unboxed function.
    * KernelFunction::makeFromUnboxedFunction is usually a better choice than
    * this if you know the function pointer at compile time, see doc comment
    * there for an explanation.
+   * 从一个未装箱的函数创建一个KernelFunction。
+   * 如果你在编译时知道函数指针，那么KernelFunction::makeFromUnboxedFunction通常是一个更好的选择，请参阅文档注释。
    *
    * Example:
    *
@@ -260,7 +261,7 @@ public:
   template<bool AllowLegacyTypes = false, class Lambda>
   static std::enable_if_t<!guts::is_stateless_lambda<std::decay_t<Lambda>>::value, KernelFunction> makeFromUnboxedLambda(Lambda&& lambda);
 
-  std::string dumpState() const;
+  std::string dumpState() const;  // 打印调试信息
   // For testing internal invariants only
   bool _equalsBoxedAndUnboxed(const KernelFunction&) const;
 

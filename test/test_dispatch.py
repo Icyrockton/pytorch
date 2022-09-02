@@ -95,8 +95,10 @@ class TestDispatch(TestCase):
         # Refs which retain the c10::Module object so we can explicitly control
         # when each deregistration happens (deregistration occurs when the
         # object gets deallocated).
+        # 保留c10::Module对象的引用，以便我们可以显式控制每次注销发生的时间(当对象被释放时，注销发生)。
         refs = [None] * len(ops)
         # Keep track of the set "in effect" registrations
+        # 跟踪“有效”的注册
         active_ops = set()
 
         # double underscore to make it less likely we conflict with something
@@ -134,10 +136,10 @@ class TestDispatch(TestCase):
             # lifetime of multiple registrations with multiple Library
             # references (refs), we can't deal with the strict checking
             # from DEF.
-            refs[op_ix] = C._dispatch_library("FRAGMENT", test_namespace, "")
+            refs[op_ix] = C._dispatch_library("FRAGMENT", test_namespace, "")   # 返回library
             active_ops.add(op_ix)
             try:
-                ops[op_ix](refs[op_ix])
+                ops[op_ix](refs[op_ix]) # 调用lambda
                 check_invariants("running ctors {}".format(ctor_order[:i + 1]))
             except RuntimeError as e:
                 if not expect_raises:
@@ -188,6 +190,7 @@ class TestDispatch(TestCase):
     # run in any order) and invertible (by deregistration).  (Subject
     # to some caveats: some legacy behavior in the system are not commutative--
     # we want to get rid of these!)
+    # 可交换，可逆
     #
     # So while in principle we could simply test a set of operations
     # by just running them one by one in the order specified by the user,
@@ -211,6 +214,8 @@ class TestDispatch(TestCase):
 
         def go(ctor_order):
             for dtor_order in itertools.permutations(range(len(ops))):
+                # ctor_order 和 dtor_order 都是list
+                # ops是一组lambda函数
                 self.run_ops(
                     name, ops, ctor_order, dtor_order,
                     results=results, expect_raises=expect_raises)
@@ -226,6 +231,7 @@ class TestDispatch(TestCase):
         # ordering of ctors which got us to the "end".  That's an
         # error in test construction: it means you could have
         # factored the test into two smaller ones.
+        print(results[frozenset(range(len(ops)))])
         return results[frozenset(range(len(ops)))]
 
     def test_def(self):
@@ -329,13 +335,13 @@ CompositeImplicitAutograd[alias]: impl_t_t :: (Tensor _0) -> Tensor _0 [ boxed u
             # m.def("foo", [](const Tensor & x) { return x })
             lambda m: m.def_name_t_t("foo"),
             # m.impl("foo", torch::kCPU, [](const Tensor & x) { return x })
-            lambda m: m.impl_t_t("foo", "CPU", debug="fn_cpu"),
+            # lambda m: m.impl_t_t("foo", "CPU", debug="fn_cpu"),
             # m.impl("foo", torch::kCUDA, [](const Tensor & x) { return x })
-            lambda m: m.impl_t_t("foo", "XLA", debug="fn_xla"),
+            # lambda m: m.impl_t_t("foo", "XLA", debug="fn_xla"),
             # m.impl("foo", torch::kAutograd, [](const Tensor & x) { return x })
-            lambda m: m.impl_t_t("foo", "Autograd", debug="fn_autograd"),
+            # lambda m: m.impl_t_t("foo", "Autograd", debug="fn_autograd"),
             # m.impl("foo", torch::kAutogradCPU, [](const Tensor & x) { return x })
-            lambda m: m.impl_t_t("foo", "AutogradCPU", debug="fn_autogradcpu")
+            # lambda m: m.impl_t_t("foo", "AutogradCPU", debug="fn_autogradcpu")
         ])
         state, table = result.state, result.table
         self.assertExpectedInline(state, '''\

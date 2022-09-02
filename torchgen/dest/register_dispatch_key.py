@@ -217,6 +217,9 @@ def gen_registration_helpers(backend_index: BackendIndex) -> List[str]:
 class RegisterDispatchKey:
     backend_index: BackendIndex
 
+    # target用来生成 不同部分的代码 例如:
+    # warpper_xxxxxxx 部分  Target.NAMESPACED_DEFINITION
+    # 结构化内核部分          Target.ANONYMOUS_DEFINITION
     target: Union[
         Literal[Target.ANONYMOUS_DEFINITION],
         Literal[Target.NAMESPACED_DEFINITION],
@@ -226,6 +229,7 @@ class RegisterDispatchKey:
 
     # Selector object to determine which operators to generate
     # registration code for.
+    # 选择器对象来确定要为哪些op生成注册代码。
     selector: SelectiveBuilder
 
     # AMD ROCm
@@ -270,7 +274,7 @@ class RegisterDispatchKey:
             # Note: We call gen_structured() if the operator is marked structured, regardless of the backend.
             # gen_structured() has special logic to handle auto-generated kernels.
             if g.structured:
-                return self.gen_structured(g)
+                return self.gen_structured(g)   # 生成结构化内核
             else:
                 return list(
                     mapMaybe(lambda f: self.gen_unstructured(f, g), g.functions())
@@ -355,15 +359,20 @@ class RegisterDispatchKey:
             self.skip_dispatcher_op_registration,
             g,
         )
+        # print(structured_gen)
+        # result = list(mapMaybe(structured_gen.gen_one, g.functions()))
         return list(mapMaybe(structured_gen.gen_one, g.functions()))
+        # return result
 
+    # 为非结构化内核生成代码，可能返回None
     def gen_unstructured(
         self, f: NativeFunction, g: Optional[NativeFunctionsGroup] = None
     ) -> Optional[str]:
         with native_function_manager(f):
             inplace_meta = False
             gets_out_inplace_wrapper = False
-            if not self.backend_index.has_kernel(f):
+            if not self.backend_index.has_kernel(f):    # 这个Backend里面是否有这个op的内核，可能没有，那就返回None
+                # 没有这个内核
                 if (
                     self.backend_index.dispatch_key == DispatchKey.Meta
                     and f.func.kind() is SchemaKind.inplace
@@ -393,25 +402,28 @@ class RegisterDispatchKey:
             ):
                 return None
 
-            sig = self.wrapper_kernel_sig(f)
+            sig = self.wrapper_kernel_sig(f)    # 生成wrapper的签名  例如 wrapper__inverse   wrapper__resize
 
-            name = sig.name()
-            returns_type = sig.returns_type().cpp_type()
+            name = sig.name()   # name 就是 wrapper__inverse , wrapper__resize
+            returns_type = sig.returns_type().cpp_type()    # 转换成cpp的类型
             args = sig.arguments()
-            args_str = ", ".join(a.defn() for a in args)
-
+            args_str = ", ".join(a.defn() for a in args)    # 生成c++的参数签名 例如 const at::Tensor & self, at::IntArrayRef kernel_size, at::IntArrayRef stride, at
             # See Note [Direct dispatch bindings]
             cpp_sig_group = CppSignatureGroup.from_native_function(
                 f, method=False, fallback_binding=False
             )
-
             if self.target is Target.NAMESPACED_DECLARATION:
                 result = f"TORCH_API {cpp_sig_group.signature.decl()};\n"
                 if cpp_sig_group.faithful_signature is not None:
                     result += f"TORCH_API {cpp_sig_group.faithful_signature.decl()};\n"
                 return result
             elif self.target is Target.NAMESPACED_DEFINITION:
-
+                """
+                生成下面的东西
+                    at::Tensor & isposinf_out(at::Tensor & out, const at::Tensor & self) {
+                        return wrapper_out_isposinf_out_out(self, out);
+                    }
+                """
                 def generate_defn(cpp_sig: CppSignature) -> str:
                     return f"""
 {cpp_sig.defn()} {{
@@ -444,6 +456,8 @@ return {sig.name()}({', '.join(e.expr for e in translate(cpp_sig.arguments(), si
                 metadata = self.backend_index.get_kernel(f)
                 if metadata is None:
                     return None
+
+                # impl_name 算子实现的名称 例如 at::native::foreach_tensor_add_list_kernel_cuda_
                 if self.class_method_name is None:
                     impl_name = f"{metadata.cpp_namespace}::{metadata.kernel}"
                 else:
@@ -519,6 +533,8 @@ namespace {{
 """
 
             elif self.target is Target.REGISTRATION:
+                # 注册到 RegisterCPU.cpp RegisterCUDA.cpp ${static_init_dispatch_registrations} 部分
+                # 将op注册到 Dispatch::CPU , Dispatch::CUDA ， 向Dispatcher注册算子，这样Dispatcher就能分派方法了
                 if f.manual_kernel_registration or self.skip_dispatcher_op_registration:
                     return None
                 else:
@@ -653,6 +669,7 @@ resize_out(out, sizes, strides, options);
         parent_class: str,
         generate_super: bool,
     ) -> str:
+        # 这里生成了结构化类
         if k is SchemaKind.functional:
             output_type = "c10::ExclusivelyOwned<Tensor>"
             output_value = "*outputs_[output_idx]"
@@ -684,6 +701,8 @@ resize_out(out, sizes, strides, options);
 
         indent = " " * 4
         class_ctor_str = self.gen_class_ctor(k, class_name, len(f.func.returns))
+        # 生成构造函数代码 例如： structured_special_modified_bessel_k1_out_out(Tensor& out0) : outputs_{ std::ref(out0) } {}
+
         lines = (
             f"struct {class_name} final : public {parent_class} {{",
             f"{textwrap.indent(class_ctor_str, indent)}",
@@ -739,6 +758,7 @@ resize_out(out, sizes, strides, options);
         )
 
         # Signature of the wrapper function we'll register to the dispatcher
+        # 我们将注册到Dispatcher的包装函数的签名
         sig = NativeSignature(f.func, prefix="wrapper_")
 
         if self.target is Target.NAMESPACED_DECLARATION:
@@ -763,7 +783,7 @@ return {sig.name()}({', '.join(e.expr for e in translate(cpp_sig.arguments(), si
 
         elif self.target is Target.ANONYMOUS_DEFINITION:
 
-            k = f.func.kind()
+            k = f.func.kind()   # out , in , inplace 变体种类
 
             # Construct the body of the wrapper function with signature sig
             sig_body = []
@@ -786,9 +806,12 @@ return {sig.name()}({', '.join(e.expr for e in translate(cpp_sig.arguments(), si
             else:
                 metadata = self.backend_index.get_kernel(self.g)
                 assert metadata is not None
-                class_name = f"structured_{metadata.kernel}_{k.name}"
+                class_name = f"structured_{metadata.kernel}_{k.name}"   # 结构化内核的名称
                 parent_class = f"{metadata.cpp_namespace}::structured_{metadata.kernel}"
+                # structured_lgamma_out_out at::native::structured_lgamma_out
+                # structured_lgamma_out_inplace at::native::structured_lgamma_out
 
+            # 这个没看
             if self.backend_index.device_guard:
                 device_check_args = itertools.chain(
                     f.func.arguments.out, f.func.arguments.flat_positional
@@ -799,6 +822,7 @@ return {sig.name()}({', '.join(e.expr for e in translate(cpp_sig.arguments(), si
                     )
                 )
 
+            # 这个是生成的 wrapper_xxxx 方法里面的代码内容
             if k is SchemaKind.functional:
                 sig_body.append(f"{class_name} op;")
             elif k is SchemaKind.inplace:
@@ -809,6 +833,7 @@ return {sig.name()}({', '.join(e.expr for e in translate(cpp_sig.arguments(), si
 
             # Translate the input native arguments into structured
             # arguments for the meta call
+            # 生成 op.meta(self, other, alpha);   括号里的内容  (self, other, alpha)
             meta_exprs = ", ".join(
                 e.expr
                 for e in translate(
@@ -846,6 +871,7 @@ return {sig.name()}({', '.join(e.expr for e in translate(cpp_sig.arguments(), si
 
             # After running meta, op.outputs_ is guaranteed to be valid;
             # add it to the context
+            # 在运行meta之后，op.outputs_保证是有效的;将其添加到上下文中
             out_args = structured.out_arguments(self.g)
             for i, out_arg in enumerate(out_args):
                 assert ConstRefCType(BaseCType(tensorT)) == out_arg.nctype.type
@@ -906,6 +932,7 @@ return {sig.name()}({', '.join(e.expr for e in translate(cpp_sig.arguments(), si
 
             # Go over each output, and check if there is a proxy created for it.
             # If so, copy it over to the original output.
+            # 检查每个输出，并检查是否为其创建了代理。如果是，将其复制到原始输出。
             if k is SchemaKind.out or k is SchemaKind.inplace:
                 for i in range(len(f.func.returns)):
                     sig_body.append(
@@ -931,7 +958,7 @@ return {sig.name()}({', '.join(e.expr for e in translate(cpp_sig.arguments(), si
                 else:
                     refs = ", ".join(a.name for a in f.func.arguments.out)
                     ret_expr = f"std::forward_as_tuple({refs})"
-            sig_body.append(f"return {ret_expr};")
+            sig_body.append(f"return {ret_expr};")      # return 语句
 
             sig_body_str = "\n".join(sig_body)
 

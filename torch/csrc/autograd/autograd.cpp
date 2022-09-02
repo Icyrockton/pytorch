@@ -17,15 +17,17 @@ namespace autograd {
 // it can be exposed in PyTorch C++ API and TorchScript. We will need to
 // maintain the logic equality of this file and the python file together if one
 // changes.
+// 这是Autograd的一个纯粹的c++ API，对python没有任何依赖，
+// 它可以在PyTorch c++ API和TorchScript中公开。如果有一个文件发生变化，我们将需要同时维护这个文件和python文件的逻辑相等性。
 // TODO: Make the Python API above to just call this C++ API.
 variable_list _make_grads(
     const variable_list& outputs,
-    const variable_list& grad_outputs) {
+    const variable_list& grad_outputs) {    // 构建grad_outputs数组
   size_t num_tensors = outputs.size();
   size_t num_gradients = grad_outputs.size();
   variable_list new_grads;
   new_grads.reserve(num_tensors);
-  if (grad_outputs.empty()) {
+  if (grad_outputs.empty()) { // 为空，使用算子at::ones_like创建
     for (const Variable& output : outputs) {
       if (output.requires_grad()) {
         TORCH_CHECK(
@@ -35,7 +37,7 @@ variable_list _make_grads(
             at::ones_like(output, LEGACY_CONTIGUOUS_MEMORY_FORMAT));
       }
     }
-  } else {
+  } else {  // 已有
     TORCH_CHECK(
         num_tensors == num_gradients,
         "got ",
@@ -88,6 +90,7 @@ variable_list run_backward(
   for (const auto i : c10::irange(num_tensors)) {
     const Variable& output = outputs[i];
     auto gradient_edge = impl::gradient_edge(output);
+    // 检查是否有 grad_fn  (导数计算function)
     TORCH_CHECK(
         gradient_edge.function,
         "element ",
@@ -122,6 +125,7 @@ variable_list run_backward(
     }
   }
 
+  // 使用engine进行执行
   variable_list grad_inputs = Engine::get_default_engine().execute(
       roots,
       grad_outputs,

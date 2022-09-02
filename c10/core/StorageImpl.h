@@ -13,17 +13,22 @@ namespace c10 {
 // codebase; we'd kind of like to get rid of the concept
 // (see https://github.com/pytorch/pytorch/issues/14797) but
 // it's hard work and no one has gotten around to doing it.
+// storage表示张量的底层后备数据缓冲区。这个概念是从最初的《Torch7》代码库继承而来的;
+// 我们有点想摆脱这个概念(参见 https://github.com/pytorch/pytorch/issues/14797)，但这是一项艰苦的工作，没有人抽时间去做它。
 //
 // NB: storage is supposed to uniquely own a data pointer; e.g.,
 // two non-null data pointers alias if and only if they are from
 // the same storage.  Technically you can violate this invariant
 // (e.g., you can create a non-owning StorageImpl with at::from_blob)
 // but a lot of things won't work correctly, including:
+// 注: storage应该唯一拥有一个数据指针;例如，两个非空数据指针别名当且仅当它们来自相同的存储。
+// 从技术上讲，你可以违反这个不变量(例如，你可以用at::from_blob创建一个非所有的StorageImpl)，但是很多事情都不能正常工作，包括:
 //
 // - An ordinary deleter on such a storage is wrong, because normal deleters
 //   assume unique ownership, but if you have two storages at the same data,
 //   that implies there is some sort of shared ownership. So your deleter would
 //   have to actually be internally doing some sort of refcount thing
+//   这种存储上的N个普通删除器是错误的，因为普通删除器假定所有权是唯一的，但如果对同一数据有两个存储，这意味着存在某种共享所有权。你的删除器会在内部做一些refcount之类的事情
 // - Deepcopy in Python side relies on storage equality and not data pointer
 //   equality; so if there are two separate storages pointing to the same data,
 //   the data will actually get duplicated in that case (one data ptr before,
@@ -210,6 +215,7 @@ struct C10_API StorageImpl : public c10::intrusive_ptr_target {
   bool resizable_;
   // Identifies that Storage was received from another process and doesn't have
   // local to process cuda memory allocation
+  // 标识从另一个进程接收的存储，没有本地处理cuda内存分配
   bool received_cuda_;
   Allocator* allocator_;
 };

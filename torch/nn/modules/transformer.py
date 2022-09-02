@@ -23,7 +23,9 @@ class Transformer(Module):
 
     Args:
         d_model: the number of expected features in the encoder/decoder inputs (default=512).
+                 encoder/decoder 输入中预期的特性数(默认=512)。
         nhead: the number of heads in the multiheadattention models (default=8).
+                有多少个头
         num_encoder_layers: the number of sub-encoder-layers in the encoder (default=6).
         num_decoder_layers: the number of sub-decoder-layers in the decoder (default=6).
         dim_feedforward: the dimension of the feedforward network model (default=2048).
@@ -35,6 +37,8 @@ class Transformer(Module):
         layer_norm_eps: the eps value in layer normalization components (default=1e-5).
         batch_first: If ``True``, then the input and output tensors are provided
             as (batch, seq, feature). Default: ``False`` (seq, batch, feature).
+            如果是True     (batch, seq, feature)
+            如果是False    (seq, batch, feature)
         norm_first: if ``True``, encoder and decoder layers will perform LayerNorms before
             other attention and feedforward operations, otherwise after. Default: ``False`` (after).
 
@@ -302,14 +306,10 @@ class TransformerDecoder(Module):
 
 class TransformerEncoderLayer(Module):
     r"""TransformerEncoderLayer is made up of self-attn and feedforward network.
-    This standard encoder layer is based on the paper "Attention Is All You Need".
-    Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez,
-    Lukasz Kaiser, and Illia Polosukhin. 2017. Attention is all you need. In Advances in
-    Neural Information Processing Systems, pages 6000-6010. Users may modify or implement
-    in a different way during application.
 
     Args:
         d_model: the number of expected features in the input (required).
+                 输入的特征数
         nhead: the number of heads in the multiheadattention models (required).
         dim_feedforward: the dimension of the feedforward network model (default=2048).
         dropout: the dropout value (default=0.1).
@@ -320,6 +320,8 @@ class TransformerEncoderLayer(Module):
             as (batch, seq, feature). Default: ``False`` (seq, batch, feature).
         norm_first: if ``True``, layer norm is done prior to attention and feedforward
             operations, respectivaly. Otherwise it's done after. Default: ``False`` (after).
+            如果是 ``True`` 在 attention 和 feedfoward 之前进行 layer norm
+                  ``Flase`` 在之后进行
 
     Examples::
         >>> encoder_layer = nn.TransformerEncoderLayer(d_model=512, nhead=8)
@@ -334,6 +336,7 @@ class TransformerEncoderLayer(Module):
     Fast path:
         forward() will use a special optimized implementation if all of the following
         conditions are met:
+        如果满足以下所有条件，forward()将使用一个特殊的优化实现:
 
         - Either autograd is disabled (using ``torch.inference_mode`` or ``torch.no_grad``) or no tensor
           argument ``requires_grad``
@@ -457,6 +460,8 @@ class TransformerEncoderLayer(Module):
                     self.linear2.bias,
                     src_mask if src_mask is not None else src_key_padding_mask,
                 )
+        # 上面是快速路径
+
         x = src
         if self.norm_first:
             x = x + self._sa_block(self.norm1(x), src_mask, src_key_padding_mask)

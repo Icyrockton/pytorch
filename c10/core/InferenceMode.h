@@ -7,8 +7,7 @@
 
 namespace c10 {
 
-// A RAII, thread local (!) guard that enables or disables inference mode upon
-// construction, and sets it back to the original value upon destruction.
+// 一个RAII模式，线程本地(!)保护，它在构造时启用或禁用推断模式，并在销毁时将其设置为原始值。
 struct TORCH_API InferenceMode {
   // Note [Expected TLS state in InferenceMode]:
   //   InferenceMode: ADInplaceOrView not in
@@ -53,8 +52,8 @@ struct TORCH_API InferenceMode {
   InferenceMode(bool enabled = true)
       : prev_mode(AutogradState::get_tls_state()),
         prev_keyset(c10::impl::tls_local_dispatch_key_set()) {
-    // Enabling inference mode means disabling grad modes
-    // And disabling inference mode means enabling grad modes
+    // 启用inference模式 意味着关闭grad模式
+    // 关闭inference模式 意味着开启grad模式
     AutogradState::set_tls_state(AutogradState(
         /* grad_mode */ !enabled,
         /* inference_mode */ enabled,

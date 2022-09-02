@@ -6,7 +6,9 @@ namespace c10 {
 
 namespace impl {
   namespace detail {
-    template<class FuncType, class ReturnType, class ParameterList> class WrapFunctionIntoRuntimeFunctor_ {};
+    template<class FuncType, class ReturnType, class ParameterList>
+    class WrapFunctionIntoRuntimeFunctor_ {};
+
     template<class FuncType, class ReturnType, class... Parameters>
     class WrapFunctionIntoRuntimeFunctor_<FuncType, ReturnType, guts::typelist::typelist<Parameters...>> final : public c10::OperatorKernel {
     public:
@@ -28,6 +30,11 @@ namespace impl {
   // This can, for example, be used for lambdas, functors or even function pointers.
   // In the case of function pointers, since it is a runtime function pointer,
   // there is an overhead for calling it whenever the kernel is invoked.
+  // WrapFunctionIntoRuntimeFunctor:将任何运行时函数封装到一个继承自c10::OperatorKernel的函数中，因此它可以用作c10内核。
+  // 例如，这可以用于lambdas、仿函数甚至函数指针。
+  // 在函数指针的情况下，由于它是一个运行时函数指针，每当调用内核时调用它都会有开销。
+
+  // 将一个函数封装为仿函数
   template<class FuncType>
   using WrapFunctionIntoRuntimeFunctor = detail::WrapFunctionIntoRuntimeFunctor_<
       FuncType,

@@ -82,6 +82,7 @@ void OperatorEntry::deregisterSchema() {
   schema_ = c10::nullopt;
   dispatchKeyExtractor_.deregisterSchema();
 }
+
 /* 注册operator对应的kernel */
 OperatorEntry::AnnotatedKernelContainerIterator OperatorEntry::registerKernel(
   const c10::Dispatcher& dispatcher,
@@ -100,6 +101,7 @@ OperatorEntry::AnnotatedKernelContainerIterator OperatorEntry::registerKernel(
   // that would also invalidate the old TypedOperatorHandles.
   if (cpp_signature.has_value()) {
     if (cpp_signature_.has_value()) {
+      // kernel不匹配
       TORCH_CHECK(*cpp_signature == cpp_signature_->signature,
         "\nMismatch in kernel C++ signatures\n",
         "  operator: ", (this->schema_.has_value() ? toString(this->schema_->schema) : toString(name_)), "\n",
@@ -116,13 +118,15 @@ OperatorEntry::AnnotatedKernelContainerIterator OperatorEntry::registerKernel(
     }
   }
 
-  if (schema_ && inferred_function_schema) {
+  if (schema_ && inferred_function_schema) {    //  这个inferred_function_schema 是根据传递而来的function推断出来的
     checkSchema(name_, schema_->schema, schema_->debug, *inferred_function_schema, debug);
   }
 
   // Add the kernel to the kernels list,
   // possibly creating the list if this is the first kernel.
   // Redirect catchAll registrations to CompositeImplicitAutograd.
+  // 将内核添加到内核列表中，如果这是第一个内核，可能会创建这个列表。
+  // 重定向catchAll注册到CompositeImplicitAutograd。
   auto& k = dispatch_key.has_value() ? kernels_[*dispatch_key] : kernels_[DispatchKey::CompositeImplicitAutograd];
 
 #ifdef C10_DISPATCHER_ONE_KERNEL_PER_DISPATCH_KEY
@@ -144,10 +148,11 @@ OperatorEntry::AnnotatedKernelContainerIterator OperatorEntry::registerKernel(
   k[0].inferred_function_schema = std::move(inferred_function_schema);
   k[0].debug = std::move(debug);
 #else
+  // 添加到 kernels_ 里面
   k.emplace_front(std::move(kernel), std::move(inferred_function_schema), std::move(debug));
 #endif
   AnnotatedKernelContainerIterator inserted = k.begin();
-  // update the dispatch table, i.e. re-establish the invariant
+  // 更新 dispatch table, i.e. re-establish the invariant
   // that the dispatch table points to the newest kernel    更新dispatch table，即重新建立dispatch table指向最新的kernel
   if (dispatch_key.has_value()) {
     updateDispatchTable_(dispatcher, *dispatch_key);
@@ -223,17 +228,25 @@ const std::vector<at::Tag>& OperatorEntry::getTags() const {
 }
 
 std::pair<const AnnotatedKernel&, const char*> OperatorEntry::computeDispatchTableEntryWithDebug(const c10::Dispatcher& dispatcher, DispatchKey dispatch_key) const {
-  // [Note] DispatchTable computation
+  // [Note] DispatchTable的计算
   // dispatchTable contains entries for runtime dispatch keys.
-  // For any dispatch key, it'll pick a kernel using the following order:
-  //  (1) Use kernel if it's directly registered to this key
+  // dispatchTable包含运行时分派键的条目。
+  // 对于任何dispatch key，它将使用以下顺序选择一个kernel
+  //  (1) 如果kernel直接注册到这个key，则使用这个kernel
   //  (2) Handle runtime keys that have kernels available from alias keys
+  //  (2) 处理从别名键中获得内核的运行时键
   //    (2.1) Use kernel from DispatchKey::CompositeExplicitAutogradNonFunctional if available.
   //          This is used to register a kernel that works for all backends in inference, except "functional" backends
   //          like LazyTensor/XLA. But it requires separate registration for Autograd keys to support training.
+  //          如果可用的话，使用从DispatchKey::CompositeExplicitAutogradNonFunctional的内核。
+  //          这是用来注册一个内核，它适用于推断中的所有后端，除了像 LazyTensor/XLA 这样的“功能性”后端。但是它需要单独注册Autograd键来支持训练。
+  //
   //    (2.2) Use kernel from DispatchKey::CompositeExplicitAutograd if available.
   //          This is used to register a kernel that works for all backend in inference. But it requires
   //          separate registration for Autograd keys to support training.
+  //          如果可用的话，使用DispatchKey::CompositeExplicitAutograd的内核。
+  //          这用于注册一个用于推断中的所有后端的内核。但是它需要单独注册Autograd键来支持培训。
+  //
   //    (2.3) Use kernel from DispatchKey::CompositeImplicitAutograd if available.
   //          For autograd keys, we only use kernel from CompositeImplicitAutograd when there's no direct registration
   //          to its corresponding backend key or CompositeExplicitAutograd. See Note [CompositeExplicitAutograd and CompositeImplicitAutograd].
@@ -243,6 +256,7 @@ std::pair<const AnnotatedKernel&, const char*> OperatorEntry::computeDispatchTab
   //          A CompositeExplicitAutograd kernel prevents CompositeImplicitAutograd kernel being used for Autograd keys, but it doesn't
   //          cause confusion for AutogradOther. It's pretty straightforward to use Autograd (if available)
   //          in this case.
+
   //    (2.4) Use kernel from DispatchKey::Autograd if available
   //    The implementation of (2.2) relies on the invariant that for a given backend,
   //    `computeDispatchTableEntryWithDebug()` will be called for that backend's autograd key after the
@@ -256,12 +270,12 @@ std::pair<const AnnotatedKernel&, const char*> OperatorEntry::computeDispatchTab
   //   This is fine and in practice CompositeExplicitAutograd and CompositeImplicitAutograd shouldn't co-exist for an op.
   // TODO: Update alias key precedence after we add new alias keys AutogradDispatchCPUOrCUDA .
 
-  // 1. Operator registration
+  // 1. Operator registration   直接注册到这个DispatchKey的kernel
   if (auto direct_registration = getKernelForDispatchKey(dispatch_key)) {
     return {*direct_registration, "kernel"};
   }
 
-  // 2.1 Use CompositeExplicitAutogradNonFunctional kernel if available.
+  // 2.1 使用 CompositeExplicitAutogradNonFunctional 如果可用的话
   //     See Note [Undefined in dispatchTable_] for the special handling for Undefined.
   if (dispatch_key == DispatchKey::Undefined || isIncludedInAlias(dispatch_key, DispatchKey::CompositeExplicitAutogradNonFunctional)) {
     if (auto default_backend_registration = getKernelForDispatchKey(DispatchKey::CompositeExplicitAutogradNonFunctional)) {
@@ -269,7 +283,7 @@ std::pair<const AnnotatedKernel&, const char*> OperatorEntry::computeDispatchTab
     }
   }
 
-  // 2.2 Use CompositeExplicitAutograd kernel if available.
+  // 2.2 使用 CompositeExplicitAutograd ，如果可用的话
   //     See Note [Undefined in dispatchTable_] for the special handling for Undefined.
   if (dispatch_key == DispatchKey::Undefined || isIncludedInAlias(dispatch_key, DispatchKey::CompositeExplicitAutograd)) {
     if (auto default_backend_registration = getKernelForDispatchKey(DispatchKey::CompositeExplicitAutograd)) {
@@ -279,6 +293,7 @@ std::pair<const AnnotatedKernel&, const char*> OperatorEntry::computeDispatchTab
 
   // Note when there's direct registration to CompositeExplicitAutograd, this code path will only be hit by
   // non backend keys (e.g AutogradXXX, Batched etc) due to (2.1).
+  // 注意，当有直接注册到CompositeExplicitAutograd，该代码路径将只会被非后端键(例如AutogradXXX，Batched等)由于(2.1)。
   bool has_backend_kernel =
     hasKernelForAnyDispatchKey(getBackendKeySetFromAutograd(dispatch_key)) ||
     // See Note [No Alias Keys in DispatchKeySet]
@@ -288,6 +303,9 @@ std::pair<const AnnotatedKernel&, const char*> OperatorEntry::computeDispatchTab
   //      when there's no direct registration to its corresponding backend key or CompositeExplicitAutograd.
   //      For AutogradOther, we return ambiguousAutogradOtherKernel() if there's registration
   //      to any of its backends.
+  //      如果可用的话，使用CompositeImplicitAutograd内核。
+  //      对于autograd键，我们只在没有直接注册到对应的后端键或CompositeExplicitAutograd时使用内核。
+  //      对于AutogradOther，如果注册到任何一个后端，我们返回ambiguousAutogradOtherKernel()。
   //      See Note [Undefined in dispatchTable_] for the special handling for Undefined.
   if (dispatch_key == DispatchKey::Undefined || isIncludedInAlias(dispatch_key, DispatchKey::CompositeImplicitAutograd)) {
     if (auto math_registration = getKernelForDispatchKey(DispatchKey::CompositeImplicitAutograd)) {
@@ -326,18 +344,23 @@ std::pair<const AnnotatedKernel&, const char*> OperatorEntry::computeDispatchTab
 // dispatch keys (e.g. runtime keys and their associated autograd keys,
 // or alias keys and their associated keysets).
 // This function should be considered a private helper for updateDispatchTable_()
+// 将给定分派键的分派表条目与Dispatcher中内核注册的当前状态同步。
+// 注意，这不是一个完整的更新，由于分派键之间的关系
+// (例如，运行时键和它们关联的自动grad键，或别名键和它们关联的键集)。
+// 这个函数应该被认为是updateDispatchTable_()的私有助手。
 void OperatorEntry::updateDispatchTableEntry_(const c10::Dispatcher& dispatcher, DispatchKey dispatch_key) {
   const auto dispatch_ix = getDispatchTableIndexForDispatchKey(dispatch_key);
   if (C10_UNLIKELY(dispatch_ix == -1)) {
     return;
   }
-  dispatchTable_[dispatch_ix] = computeDispatchTableEntry(dispatcher, dispatch_key);
+  dispatchTable_[dispatch_ix] = computeDispatchTableEntry(dispatcher, dispatch_key);  // 设置分派表的kernel
   dispatchKeyExtractor_.setOperatorHasFallthroughForKey(dispatch_key, dispatchTable_[dispatch_ix].isFallthrough());
 }
 
 // synchronizes the dispatch table entries for a given dispatch key *and its
 // associated keys* with the current state of kernel registrations in the
 // dispatcher.
+// 根据给定的dispatch key和dispatcher里面相关的key  同步dispatch table的项
 // After a kernel has been registered to a dispatch key, a call to this
 // function will synchronize the dispatcher state. See e.g. registerKernel()
 void OperatorEntry::updateDispatchTable_(const c10::Dispatcher& dispatcher, DispatchKey dispatch_key) {
@@ -383,12 +406,14 @@ void OperatorEntry::updateDispatchTable_(const c10::Dispatcher& dispatcher, Disp
 //
 void OperatorEntry::updateDispatchTableFull_(const c10::Dispatcher& dispatcher) {
   // Note [Undefined in dispatchTable_]
-  // DispatchKey Undefined is used in runtime:
+  // DispatchKey Undefined在运行时使用:
   // (1) it gives people place to specify functionality that should run when there are no dispatch keys,
   //     e.g., an op without Tensor inputs or empty TensorList arguments
+  //     它给人们提供了一个地方来指定在*没有分派键时*应该运行的功能，例如，一个没有张量输入或空的TensorList参数的操作
   // (2) it would let us remove the explicit error checking code in the dispatch hotpath, and so when
   //     no dispatch keys are available we just slide into the undefined handler which would then raise
   //     the error message.
+  //     它将允许我们删除分派热路径中显式的错误检查代码，因此当没有可用的分派键时，我们只需滑动到未定义的处理程序，然后抛出错误消息。
   // In the old world of catchAll, the only way to "register" a kernel to Undefined is by registering it to
   // catchAll. After catchAllKernel_ is removed, Undefined now can get a kernel from either CompositeExplicitAutograd,
   // or CompositeImplicitAutograd alias key so that we don't break the support. Ideally isIncludedInAlias(Undefined, CompositeImplicitAutograd)
@@ -476,17 +501,11 @@ void OperatorEntry::reportError(DispatchKey dispatchKey) const {
           listAllDispatchKeys(), ".\n\n", dumpComputedTable());
 }
 
-// INSPECTING DISPATCHER STATE
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// The dumper functions purposely do not check invariants, as you might be using
-// them to debug situations where the invariants are violated.
 
-// Inspect what the computed dispatch table would be (e.g., what
-// updateDispatchTableFull_ would update the dispatch table to be)
+// 检查计算的分派表将是什么(例如，updateDispatchTableFull_将更新分派表为什么)
 std::string OperatorEntry::dumpComputedTable() const {
   std::ostringstream oss;
-  // Need to handle Undefined separately, because its a runtime key that can't be represented
-  // in a DispatchKeySet.
+  // 需要单独处理Undefined，因为它是一个运行时键，不能在DispatchKeySet中表示。
   std::vector<DispatchKey> runtime_keys = {DispatchKey::Undefined};
   for (auto k : DispatchKeySet(DispatchKeySet::FULL)) runtime_keys.push_back(k);
 

@@ -115,6 +115,13 @@ std::vector<Tensor> not_implemented_list(const char* name, const char* reason) {
   return not_implemented_base<std::vector<Tensor>>(name, reason);
 }
 
+/**
+ * 如果常数s是1,直接返回 , 否则才相乘
+ *
+ * @param t
+ * @param s 一个常数
+ * @return
+ */
 Tensor maybe_multiply(const Tensor& t, const Scalar& s) {
   bool is_one = false;
   if (s.isFloatingPoint()) {
@@ -141,11 +148,17 @@ int64_t _safe_size(IntArrayRef sizes, IntArrayRef dim) {
   }
   return size;
 }
-
+/**
+ * 如果 self_st是不是complex type , 需要计算返回实部
+ *
+ * @param self_st 另一个tensor的ScalarType
+ * @param gradient_result 梯度结果的Tensor
+ * @return
+ */
 Tensor handle_r_to_c(ScalarType self_st, Tensor gradient_result) {
   if (!at::isComplexType(self_st) && gradient_result.is_complex()) {
     // R -> C
-    return at::real(gradient_result);
+    return at::real(gradient_result); // 只返回实部
   }
   return gradient_result;
 }
@@ -815,7 +828,7 @@ Tensor unsqueeze_to(const Tensor& self, int64_t dim, IntArrayRef sizes) {
 
 std::vector<Tensor> cat_tensors_backward(
     const Tensor& grad,
-    const std::vector<std::vector<int64_t>>& sizes,
+    const std::vector<std::vector<int64_t>>& sizes, // 输入的tensor的size
     const std::vector<ScalarType>& dtypes,
     int64_t dim) {
   std::vector<Tensor> grad_inputs(sizes.size());

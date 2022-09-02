@@ -19,7 +19,7 @@ TORCH_API extern const char* ERR_BACKWARD_TWICE;
 
 /// A snapshot of a variable at a certain version. A `SavedVariable` stores
 /// enough information to reconstruct a variable from a certain point in time.
-// NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
+// 变量的某个版本的快照。“SavedVariable”存储了足够的信息来从某个时间点重建一个变量。
 class TORCH_API SavedVariable {
  public:
   SavedVariable() = default;

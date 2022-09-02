@@ -16,6 +16,7 @@ c10::Allocator* GetCPUAllocatorMaybePinned(bool pin_memory) {
   return c10::GetCPUAllocator();
 }
 
+// Tensor可以使用的最大存储容量
 constexpr uint64_t storage_max() {
   // int64_t and size_t are used somewhat inconsistently throughout ATen.
   // To be safe, storage size calculations must fit in both types.
@@ -45,7 +46,7 @@ size_t computeStorageNbytesContiguous(
   uint64_t size = 1;
   bool overflowed = c10::safe_multiplies_u64(sizes, &size);
   overflowed |= c10::add_overflows(size, storage_offset, &size);
-  overflowed |= c10::mul_overflows(size, itemsize_bytes, &size);
+  overflowed |= c10::mul_overflows(size, itemsize_bytes, &size);    // size * itemsize_bytes = 总容量
   overflowed |= size > storage_max();
   TORCH_CHECK(!overflowed,
               "Storage size calculation overflowed with sizes=", sizes);
@@ -101,17 +102,17 @@ size_t computeStorageNbytes(
 TensorBase empty_generic(
     IntArrayRef size,
     c10::Allocator* allocator,
-    c10::DispatchKeySet ks,
+    c10::DispatchKeySet ks, // 对应的dispatch key
     ScalarType scalar_type,
     c10::optional<c10::MemoryFormat> memory_format_opt) {
-  at::detail::check_size_nonnegative(size);
-  at::detail::raise_warning_for_complex_half(scalar_type);
+  at::detail::check_size_nonnegative(size);   // 检查size是大于0的
+  at::detail::raise_warning_for_complex_half(scalar_type);  // 如果 scalar_type == kComplexHalf 报错
   caffe2::TypeMeta dtype = scalarTypeToTypeMeta(scalar_type);
-  size_t size_bytes = computeStorageNbytesContiguous(size, dtype.itemsize());
+  size_t size_bytes = computeStorageNbytesContiguous(size, dtype.itemsize()); // 计算需要的容量大小
   auto storage_impl = c10::make_intrusive<StorageImpl>(
       c10::StorageImpl::use_byte_size_t(),
-      size_bytes,
-      allocator->allocate(size_bytes),
+      size_bytes, // 字节大小
+      allocator->allocate(size_bytes),  // 分配内存
       allocator,
       /*resizeable=*/true);
 

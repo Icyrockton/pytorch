@@ -11,14 +11,15 @@ namespace autograd {
 
 struct Node;
 
-/// Represents a particular input of a function.
+/// Represents a particular input of a function.    表示函数的特定输入。
+/// Edge将所有的Node链接起来, Edge都通过函数 gradient_edge 创建
 struct Edge {
   Edge() noexcept : function(nullptr), input_nr(0) {}
 
   Edge(std::shared_ptr<Node> function_, uint32_t input_nr_) noexcept
       : function(std::move(function_)), input_nr(input_nr_) {}
 
-  /// Convenience method to test if an edge is valid.
+  /// 测试一条Edge是否有效的方便方法
   bool is_valid() const noexcept {
     return function != nullptr;
   }
@@ -36,6 +37,7 @@ struct Edge {
   std::shared_ptr<Node> function;
 
   /// The identifier of a particular input to the function.
+  /// forward function中 output输出的索引序号         , backward之后 flip名称 output->input
   uint32_t input_nr;
 };
 } // namespace autograd

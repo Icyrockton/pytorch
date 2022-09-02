@@ -7,13 +7,16 @@ namespace c10 {
 // backend_dispatch_keyset includes all dispatch keys that map to backends.
 // Alias key DispatchKey::CompositeExplicitAutograd maps to
 // backend_dispatch_keyset
+// Backend_dispatch_keyset包括映射dispatch keys到后端
+// 别名键 DispatchKey::CompositeExplicitAutograd 映射到 backend_dispatch_keyset
 constexpr DispatchKeySet backend_dispatch_keyset =
     autogradother_backends | DispatchKeySet(DispatchKey::Dense);
 
 // See Note [CompositeExplicitAutogradNonFunctional Key]
 // We have several types of decompositions in aten, that each have their own
 // alias key. You should register your decomposition to the
-// `CompositeExplicitAutogradNonFunctional key` if: (1) It's an out-of-place op
+// `CompositeExplicitAutogradNonFunctional key` if:
+// (1) It's an out-of-place op
 // (2) It decomposes into one more mutation ops
 // (3) It has a derivative formula
 //     (In theory we could also have a separate key for
@@ -48,6 +51,9 @@ bool isBackendDispatchKey(DispatchKey t) {
 constexpr DispatchKeySet math_dispatch_keyset =
     backend_dispatch_keyset | autograd_dispatch_keyset;
 
+/**
+ * 根据DispatchKey 返回DispatchKeySet
+ */
 DispatchKeySet getRuntimeDispatchKeySet(DispatchKey t) {
   TORCH_INTERNAL_ASSERT(t != DispatchKey::Undefined);
   switch (t) {
@@ -69,6 +75,9 @@ DispatchKeySet getRuntimeDispatchKeySet(DispatchKey t) {
   }
 }
 
+/**
+ *  别名键t是否包括k
+ */
 bool runtimeDispatchKeySetHas(DispatchKey t, DispatchKey k) {
   TORCH_INTERNAL_ASSERT(t != DispatchKey::Undefined);
   switch (t) {
@@ -89,8 +98,7 @@ bool runtimeDispatchKeySetHas(DispatchKey t, DispatchKey k) {
   }
 }
 
-// for a given autograd key, return the (guaranteed nonempty) set of associated
-// backend keys. for a non-autograd key, return the empty keyset.
+// 对于给定的autograd键，返回相关后端键集(保证非空)。对于非autograd键，返回空键集。
 DispatchKeySet getBackendKeySetFromAutograd(DispatchKey t) {
   switch (t) {
     case DispatchKey::AutogradCPU:
@@ -127,6 +135,9 @@ DispatchKeySet getBackendKeySetFromAutograd(DispatchKey t) {
   }
 }
 
+/**
+ *  k是否在别名键alias中间
+ */
 bool isIncludedInAlias(DispatchKey k, DispatchKey alias) {
   return k != DispatchKey::Undefined && runtimeDispatchKeySetHas(alias, k);
 }
@@ -155,6 +166,7 @@ std::ostream& operator<<(std::ostream& os, DispatchKeySet ts) {
   return os;
 }
 
+// 迭代器的++函数
 DispatchKeySet::iterator& DispatchKeySet::iterator::operator++() {
   TORCH_INTERNAL_ASSERT(next_functionality_ <= iterator::end_iter_mask_val);
   TORCH_INTERNAL_ASSERT(next_backend_ <= num_backends, next_backend_);
@@ -243,6 +255,7 @@ initializeFunctionalityOffsetsAndMasks() {
   // 手动设置第一个条目，对应于Undefined.
   offsets_and_masks[0] = FunctionalityOffsetAndMask(0, 0);
   // loop through every functionality key (aside from Undefined).
+  // 循环遍历每个功能键(Undefined除外)
   for (const auto functionality_idx : c10::irange(1, num_functionality_keys)) {
     // functionality_idx should be Dense -> 1, ...
     auto prev_offset_and_mask = offsets_and_masks[functionality_idx - 1];
@@ -251,7 +264,7 @@ initializeFunctionalityOffsetsAndMasks() {
     // If the previous functionality was not per-backend, then we can just
     // increment the previous offset. Otherwise, the next offset =
     // previous_offset + num_backends.
-    // 如果之前的功能不是基于backend，那么我们可以只增加之前的偏移量。
+    // 如果之前的功能不是per-backend的，那么我们可以只增加之前的偏移量。
     // 否则，next_offset = previous_offset + num_backend。
     auto next_offset = prev_offset_and_mask.offset +
         (prev_offset_and_mask.mask == 0 ? 1 : num_backends);

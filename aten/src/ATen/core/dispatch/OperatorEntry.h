@@ -66,12 +66,13 @@ struct AnnotatedSchema final {
 // Concurrent writes to OperatorEntry are protected by the GLOBAL Dispatcher
 // lock (this is important because some methods in OperatorEntry access
 // dispatcher state)
+// 对 OperatorEntry 的并发写操作由GLOBAL Dispatcher锁保护(这很重要，因为 OperatorEntry 访问Dispatcher中的一些状态)
 class TORCH_API OperatorEntry final {
 public:
   explicit OperatorEntry(OperatorName&& operator_name);
 
-  OperatorEntry(const OperatorEntry&) = delete;
-  OperatorEntry(OperatorEntry&&) noexcept = delete;
+  OperatorEntry(const OperatorEntry&) = delete; // 拷贝构造函数
+  OperatorEntry(OperatorEntry&&) noexcept = delete; // 移动构造函数
   OperatorEntry& operator=(const OperatorEntry&) = delete;
   OperatorEntry& operator=(OperatorEntry&&) noexcept = delete;
 
@@ -119,11 +120,12 @@ public:
   // owned by OperatorEntry, but backend fallbacks are specified once
   // and apply for all operators, so they should be owned by Dispatcher.
   // 为什么内核和回退是不对称的?这与所有权有关。
-  // 内核和它们的计算分派表通常由OperatorEntry拥有，但后端回退只指定一次，并应用于所有操作，因此它们应该由Dispatcher拥有。
+  // 内核和它们的计算得到分派表通常由OperatorEntry拥有，但backend fallback只指定一次，并应用于所有op，因此它们应该由Dispatcher拥有。
   // However, the registration of a backend fallback affects the
   // state of the computed dispatch table, so when a backend fallback
-  // is updated, we need to update the operator tables too.  Thus,
-  // registerKernel is the mechanism by which we give kernels to
+  // is updated, we need to update the operator tables too.
+  // 但是，backend fallback的注册会影响计算分派表的状态，因此当更新backend fallback时，我们也需要更新操作符表。
+  // Thus,registerKernel is the mechanism by which we give kernels to
   // operator entry to own (and update dispatch table), but we only
   // need a non-owning mechanism to update fallback.
 
@@ -157,7 +159,7 @@ public:
     schema_->schema.setAliasAnalysis(a);
   }
 
-  std::string dumpComputedTable() const;
+  std::string dumpComputedTable() const;  // dump分派表
   std::string dumpState() const;
   void checkInvariants() const;
 
@@ -226,14 +228,14 @@ private:
 
   // kernels_ stores all registered kernels for the corresponding dispatch key
   // and catchAllKernels_ stores the catch-all kernels.
-  // kernels_存储对应dispatch key的所有注册内核，catchAllKernels_存储捕获所有catch-all内核
+  // kernels_存储对应dispatch key的所有注册的内核，catchAllKernels_存储所有的catch-all内核
   // If an operator library gets loaded that overwrites an already existing kernel,
   // both kernels will be in that list but only the newer one will be in
   // dispatchTable. If any of the kernels go away (say the library gets
   // unloaded), we remove the kernel from this list and update the
   // dispatchTable if necessary.
   // 如果一个operator库被加载，覆盖了一个已经存在的kernel，
-  // 那么两个kernel都将在该列表中，但只有最新的一个将在dispatchTable中。
+  // 那么两个kernel都将在该列表中，*但只有最新的一个将在dispatchTable中  <----------重要   *。
   // 如果任何一个kernel消失了(比如库被卸载)，我们就从这个列表中删除kernel，并在必要时更新dispatchTable。
   // Kernels in the list are ordered by registration time descendingly,
   // newer registrations are before older registrations.
@@ -275,7 +277,9 @@ private:
 
   // cpp_signature_ stores function signature if any of
   // the kernels was created in a way that allowed us to know the function
-  // signature (i.e. by supplying an unboxed C++ kernel function).
+  // signature
+  // cpp_signature_ 存储函数签名，如果任何内核的创建方式允许我们知道函数签名
+  // (i.e. by supplying an unboxed C++ kernel function).
   // If this is set, it will be used to check that future kernel
   // registrations match and it will be used in unboxed function calls
   // to verify their arguments against the known function signature.
@@ -287,6 +291,7 @@ private:
   c10::optional<CppSignatureWithDebug> cpp_signature_;
 
   // Whether this operator needs to be observed with RecordFunction
+  // 是否需要用RecordFunction观察该操作符
   const bool is_observed_;
 
   [[noreturn]] void reportSignatureError(CppSignature call_signature) const;

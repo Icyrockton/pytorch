@@ -31,16 +31,13 @@ struct ExclusivelyOwnedTraits;
 struct DontIncreaseRefcount {};
 } // namespace raw
 /**
- * intrusive_ptr<T> is an alternative to shared_ptr<T> that has better
- * performance because it does the refcounting intrusively
- * (i.e. in a member of the object itself).
- * intrusive_ptr<T>是shared_ptr<T>的一个替代方案，它具有更好的性能，因为它进行了侵入式的引用(即在对象本身的成员中)。
+ * intrusive_ptr<T>是shared_ptr<T>的一个替代方案，它具有更好的性能，因为它进行了侵入式的引用(即在对象本身的成员中)
  *
  * Your class T needs to inherit from intrusive_ptr_target to allow it to be
  * used in an intrusive_ptr<T>. Your class's constructor should not allow
  *`this` to escape to other threads or create an intrusive_ptr from `this`.
- * 您的类T需要从 intrusive_ptr_target 继承，以允许在intrusive_ptr<T>中使用它。
- * 你的类的构造函数不应该允许' this '转义到其他线程或从' this '创建一个intrusive_ptr。
+ * 您的类T需要继承于 intrusive_ptr_target，以允许在intrusive_ptr<T>中使用它。
+ * 你的类的构造函数不应该允许 `this`逃逸到其他线程 或 从`this`创建一个intrusive_ptr
  */
 
 // Note [Stack allocated intrusive_ptr_target safety]
@@ -52,8 +49,9 @@ struct DontIncreaseRefcount {};
 // because we set the refcount/weakcount of objects which inherit from
 // intrusive_ptr_target to zero, *unless* we can prove that the object
 // was dynamically allocated (e.g., via make_intrusive).
+//
 // std::enable_shared_from_this的一个众所周知的问题是，
-// 它允许您从堆栈分配的对象创建std::shared_ptr，这是完全虚假的，因为一旦您从堆栈返回，对象就会死亡。
+// 它允许您从堆栈分配的对象创建std::shared_ptr，这是完全错误的，因为一旦您从栈返回，对象就会死亡。
 // 在intrusive_ptr中，我们可以检测到这种情况已经发生，
 // 因为我们将继承自intrusive_ptr_target的对象的refcount/weakcount 设置为零，除非我们可以证明该对象是动态分配的(例如，通过make_intrusive)。
 //
@@ -70,10 +68,10 @@ struct DontIncreaseRefcount {};
 class C10_API intrusive_ptr_target {
   // Note [Weak references for intrusive refcounting]
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  // Here's the scheme:
+  // 下面是方案:
   //
-  //  - refcount == number of strong references to the object
-  //    weakcount == number of weak references to the object,
+  //  - refcount ==  对象的强引用
+  //    weakcount == 对象的弱引用
   //      plus one more if refcount > 0
   //    An invariant: refcount > 0  =>  weakcount > 0
   //
@@ -83,8 +81,7 @@ class C10_API intrusive_ptr_target {
   //
   //  - finalizers are called and data_ptr is deallocated when refcount == 0
   //
-  //  - Once refcount == 0, it can never again be > 0 (the transition
-  //    from > 0 to == 0 is monotonic)
+  //  - 一旦refcount == 0，它就再也不能是 > 0(从> 0到== 0的转换是单调的)
   //
   //  - When you access c10::StorageImpl via a weak pointer, you must
   //    atomically increment the use count, if it is greater than 0.
@@ -106,8 +103,7 @@ class C10_API intrusive_ptr_target {
   friend struct ExclusivelyOwnedTraits;
 
  protected:
-  // protected destructor. We never want to destruct intrusive_ptr_target*
-  // directly.
+
   // 受保护的析构函数。我们永远不想直接销毁 intrusive_ptr_target*
   virtual ~intrusive_ptr_target() {
 // Disable -Wterminate and -Wexceptions so we're allowed to use assertions
@@ -155,10 +151,9 @@ class C10_API intrusive_ptr_target {
 
   constexpr intrusive_ptr_target() noexcept : refcount_(0), weakcount_(0) {}
 
-  // intrusive_ptr_target supports copy and move: but refcount and weakcount
   // don't participate (since they are intrinsic properties of the memory
   // location)
-  // Intrusive_ptr_target支持复制和移动:但是refcount和weakcount不参与(因为它们是内存位置的固有属性)
+  // Intrusive_ptr_target支持复制构造和移动构造:但是refcount和weakcount不参与(因为它们是内存位置的固有属性)
   intrusive_ptr_target(intrusive_ptr_target&& /*other*/) noexcept
       : intrusive_ptr_target() {}
 
@@ -193,6 +188,8 @@ class C10_API intrusive_ptr_target {
 };
 
 namespace detail {
+
+//
 template <class TTarget>
 struct intrusive_target_default_null_type final {
   static constexpr TTarget* singleton() noexcept {
@@ -236,6 +233,7 @@ inline size_t atomic_weakcount_decrement(std::atomic<size_t>& weakcount) {
 template <class TTarget, class NullType>
 class weak_intrusive_ptr;
 
+/////////////////////////////////////// intrusive_ptr //////////////////////////////////
 template <
     class TTarget,
     class NullType = detail::intrusive_target_default_null_type<TTarget>>
@@ -280,6 +278,7 @@ class intrusive_ptr final { /* intrusive_ptrd的定义 */
   template <typename, typename...>
   friend class pybind11::class_;
 
+  // 递增引用计数
   void retain_() {
     if (target_ != NullType::singleton()) {
       size_t new_refcount =
@@ -303,6 +302,7 @@ class intrusive_ptr final { /* intrusive_ptrd的定义 */
         // justification for const_cast: release_resources is basically a
         // destructor and a destructor always mutates the object, even for const
         // objects. NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+        // 这里调用了release_resources()释放资源
         const_cast<std::remove_const_t<TTarget>*>(target_)->release_resources();
         should_delete =
             detail::atomic_weakcount_decrement(target_->weakcount_) == 0;
@@ -313,16 +313,11 @@ class intrusive_ptr final { /* intrusive_ptrd的定义 */
     }
   }
 
-  // raw pointer constructors are not public because we shouldn't make
-  // intrusive_ptr out of raw pointers except from inside the make_intrusive(),
-  // reclaim() and weak_intrusive_ptr::lock() implementations.
-  // 原始指针的构造函数不是公共的，因为除了在make_intrusive_ptr()、reclaim()和weak_intrusive_ptr::lock()实现内部，我们不应该用原始指针创建intrusive_ptr。
+  // 原始指针的构造函数不是public的，
+  // 因为除了在make_intrusive_ptr()、reclaim()和weak_intrusive_ptr::lock()，
+  // 我们不应该用原始指针创建intrusive_ptr。
 
-  // This constructor will increase the ref counter for you.
-  // This constructor will be used by the make_intrusive(), and also pybind11,
-  // which wrap the intrusive_ptr holder around the raw pointer and incref
-  // correspondingly (pybind11 requires raw pointer constructor to incref by
-  // default).
+  // 这个构造函数将由 make_intrusive()调用
   explicit intrusive_ptr(TTarget* target)
       : intrusive_ptr(target, raw::DontIncreaseRefcount{}) {
     if (target_ != NullType::singleton()) {
@@ -336,6 +331,7 @@ class intrusive_ptr final { /* intrusive_ptrd的定义 */
           "intrusive_ptr: Newly-created target had non-zero refcounts. Does its "
           "constructor do something strange like incref or create an "
           "intrusive_ptr from `this`?");
+      // 引用计数递增
       target_->refcount_.store(1, std::memory_order_relaxed);
       target_->weakcount_.store(1, std::memory_order_relaxed);
     }
@@ -347,16 +343,14 @@ class intrusive_ptr final { /* intrusive_ptrd的定义 */
   intrusive_ptr() noexcept
       : intrusive_ptr(NullType::singleton(), raw::DontIncreaseRefcount{}) {}
 
-  // This constructor will not increase the ref counter for you.
-  // We use the tagged dispatch mechanism to explicitly mark this constructor
-  // to not increase the refcount
-  // 此构造函数不会为您增加引用计数器。我们使用带标记的分派机制显式地标记这个构造函数，使其不增加引用
+  // 此构造函数不会为您增加引用计数器。我们使用带标记的分派机制显式地标记这个构造函数，使其不增加引用技术
   explicit intrusive_ptr(TTarget* target, raw::DontIncreaseRefcount) noexcept
       : target_(target) {}
 
   explicit intrusive_ptr(std::unique_ptr<TTarget> rhs) noexcept
       : intrusive_ptr(rhs.release()) {}
 
+  // 移动构造函数
   intrusive_ptr(intrusive_ptr&& rhs) noexcept : target_(rhs.target_) {
     rhs.target_ = NullType::singleton();
   }
@@ -506,9 +500,6 @@ class intrusive_ptr final { /* intrusive_ptrd的定义 */
   }
 
   /**
-   * Allocate a heap object with args and wrap it inside a intrusive_ptr and
-   * incref. This is a helper function to let make_intrusive() access private
-   * intrusive_ptr constructors.
    * 使用args分配一个堆对象，并将其包装在intrusive_ptr和incref中。
    * 这是一个帮助函数，让make_intrusive()访问私有的intrusive_ptr构造函数。
    */

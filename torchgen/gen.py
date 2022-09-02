@@ -131,24 +131,26 @@ ParsedYaml = namedtuple("ParsedYaml", ["native_functions", "backend_indices"])
 
 # 解析 native_functions.yaml 文件 es是yaml对象
 def parse_native_yaml_struct(
-    es: object,
+    es: object, # yaml对象
     valid_tags: Set[str],
     ignore_keys: Optional[Set[DispatchKey]] = None,
     path: str = "<stdin>",
     skip_native_fns_gen: bool = False,
 ) -> ParsedYaml:
     assert isinstance(es, list) # es是一个list,其中的每个item都是定义的一个NativeFunction
-    rs: List[NativeFunction] = []
+    rs: List[NativeFunction] = []   # 解析完成的result
     bs: Dict[DispatchKey, Dict[OperatorName, BackendMetadata]] = defaultdict(dict)
-    for e in es:
+    for e in es:     # 遍历每一个native function的定义
         assert isinstance(e.get("__line__"), int), e
         loc = Location(path, e["__line__"])
         funcs = e.get("func")   # 得到 func
         with context(lambda: f"in {loc}:\n  {funcs}"):
-            func, m = NativeFunction.from_yaml(e, loc, valid_tags, ignore_keys)
+            func, m = NativeFunction.from_yaml(e, loc, valid_tags, ignore_keys) # 解析一个NativeFunction
             rs.append(func)
             BackendIndex.grow_index(bs, m)  # 将m添加到bs里面 并进行重复判断
-    error_check_native_functions(rs)
+
+    error_check_native_functions(rs)    # 错误检查
+
     # Default dict is to prevent the codegen from barfing when we have a dispatch key that has no kernels yet.
     indices: Dict[DispatchKey, BackendIndex] = defaultdict(
         lambda: BackendIndex(
@@ -220,10 +222,10 @@ def parse_native_yaml(
         with open(path, "r") as f:
             es = yaml.load(f, Loader=LineLoader)
         _GLOBAL_PARSE_NATIVE_YAML_CACHE[path] = parse_native_yaml_struct(
-            es,
+            es, # yaml解析文件
             valid_tags,
             ignore_keys,
-            path=path,
+            path=path,  # ..../native/native_functions.yaml
             skip_native_fns_gen=skip_native_fns_gen,
         )
 
@@ -492,6 +494,8 @@ class RegisterSchema:
 # to access an "un-overloaded" function version of the operator. This
 # is useful for extension writers who want to (1) want to decltype the operator
 # and (2) don't want to worry about method-only operators.
+# 生成Operators.h和Operators.cpp。这些宏提供了一个操作符和重载名称，
+# 允许用户访问操作符的“未重载”函数版本。这对于想要(1)解密操作符和(2)不想担心只使用方法的操作符的扩展作者来说非常有用。
 @dataclass(frozen=True)
 class ComputeOperators:
     target: Union[Literal[Target.DECLARATION], Literal[Target.DEFINITION]]
@@ -736,7 +740,7 @@ def compute_meta_function_declaration(g: NativeFunctionsGroup) -> Optional[str]:
         name = meta.name(g)
         args = structured.meta_arguments(g)
         args_str = ", ".join(a.decl() for a in args)
-        parent_class = g.out.structured_inherits
+        parent_class = g.out.structured_inherits    # 要继承的类，不写默认是 MetaBase 否则一般是 TensorIteratorBase
         if parent_class is None:
             parent_class = "at::impl::MetaBase"
         meta_return = "void"
@@ -1412,6 +1416,7 @@ def gen_aggregated_headers(
 ) -> None:
     # Buck doesn't support dynamic output files, so we aggregate all operator
     # headers into a single file
+    # 结构化内核的meta
     cpu_fm.write(
         "NativeMetaFunctions.h",
         lambda: {
@@ -1732,6 +1737,7 @@ def gen_headers(
     per_operator_headers: bool,
 ) -> None:
     if per_operator_headers:
+        # 按op分开头文件
         gen_per_operator_headers(
             native_functions=native_functions,
             grouped_native_functions=grouped_native_functions,
@@ -1746,6 +1752,7 @@ def gen_headers(
             rocm=rocm,
         )
     else:
+        # 生成一个大的文件
         gen_aggregated_headers(
             native_functions=native_functions,
             grouped_native_functions=grouped_native_functions,
@@ -1852,9 +1859,9 @@ def gen_headers(
 
 def gen_source_files(
     *,
-    native_functions: Sequence[NativeFunction],
-    grouped_native_functions: Sequence[Union[NativeFunction, NativeFunctionsGroup]],
-    structured_native_functions: Sequence[NativeFunctionsGroup],
+    native_functions: Sequence[NativeFunction], # 所有的NativeFunction
+    grouped_native_functions: Sequence[Union[NativeFunction, NativeFunctionsGroup]],    # 结构化 + 普通的NativeFunction
+    structured_native_functions: Sequence[NativeFunctionsGroup],    # 结构化NativeFunction
     view_groups: Sequence[NativeFunctionsViewGroup],
     selector: SelectiveBuilder,
     static_dispatch_idx: List[BackendIndex],
@@ -1882,10 +1889,35 @@ def gen_source_files(
 #include <ATen/hip/HIPDevice.h>
 #include <ATen/hip/HIPContext.h>"""
 
+    # 调试
+    # import json
+    # result = []
+    # for n in native_functions:
+    #     result.append(n.__str__())
+    # with open('icy_native_function.txt',mode='w',encoding='utf-8') as file :
+    #     file.write(json.dumps(result, indent=2))
+
+    # import json
+    # result = []
+    # for n in grouped_native_functions:
+    #     result.append(n.__str__())
+    # with open('icy_group_native_function.txt',mode='w',encoding='utf-8') as file :
+    #     file.write(json.dumps(result, indent=2))
+    #
+
+    # import json
+    # result = []
+    # for n in structured_native_functions:
+    #     result.append(n.__str__())
+    # with open('icy_structured_native_functions.txt',mode='w',encoding='utf-8') as file :
+    #     file.write(json.dumps(result, indent=2))
+
+
+
     for dispatch_key in dispatch_keys:  # 遍历每个dispatch key   model.py::dispatch_keys
         fm = cuda_fm if is_cuda_dispatch_key(dispatch_key) else cpu_fm
 
-        if per_operator_headers:
+        if per_operator_headers:    # 这个一般是False，不看这个
 
             def operator_headers() -> List[str]:    # include各种需要的头文件
                 headers = []
@@ -1945,13 +1977,14 @@ def gen_source_files(
                 if isinstance(grouped_native_function, NativeFunction)
                 else grouped_native_function.functional.namespace
             )
-            ns_grouped_native_functions[namespace].append(grouped_native_function)  # 按namespace划分
+
+            ns_grouped_native_functions[namespace].append(grouped_native_function)  # 按namespace划分，几乎所有的都在aten里面
 
         static_init_dispatch_registrations = ""
         for namespace, functions in ns_grouped_native_functions.items():    # 按namespace划分
             dispatch_registrations_body = (
                 ""
-                if skip_dispatcher_op_registration
+                if skip_dispatcher_op_registration  # 一般都是False，看下面的
                 else "\n".join(
                     list(
                         concatMap(
@@ -1969,6 +2002,7 @@ def gen_source_files(
                 )
             )
 
+            # 下面是注册到 Dispatcher的代码语句
             static_init_dispatch_registrations += f"""
 TORCH_LIBRARY_IMPL({namespace}, {dispatch_key}, m) {{
     {dispatch_registrations_body}
@@ -1991,6 +2025,8 @@ TORCH_LIBRARY_IMPL({namespace}, {dispatch_key}, m) {{
                 "DispatchKey": dispatch_key,
                 "dispatch_namespace": dispatch_key.lower(),
                 "dispatch_helpers": dest.gen_registration_helpers(backend_index),   # 生成一些辅助函数
+
+                # 下面生成了 at::cpu at::cuda 下面的方法 ， 里面调用了wrapper__xxxxx
                 "dispatch_namespaced_definitions": list(
                     concatMap(
                         dest.RegisterDispatchKey(
@@ -2004,6 +2040,8 @@ TORCH_LIBRARY_IMPL({namespace}, {dispatch_key}, m) {{
                         grouped_native_functions,
                     )
                 ),
+
+                # 生成结构化内核，wrapper_xxxx的实现
                 "dispatch_anonymous_definitions": list(
                     concatMap(
                         dest.RegisterDispatchKey(
@@ -2017,11 +2055,14 @@ TORCH_LIBRARY_IMPL({namespace}, {dispatch_key}, m) {{
                         grouped_native_functions,
                     )
                 ),
-                "static_init_dispatch_registrations": static_init_dispatch_registrations,   # 向dispatcher注册算子 m.impl(xxx,xxx)
+
+                # 向dispatcher注册算子 m.impl(xxx,xxx)
+                "static_init_dispatch_registrations": static_init_dispatch_registrations,
                 "deferred_dispatch_registrations": "",
             },
         )
 
+        # 这里貌似只有 add 这个op有
         for g in structured_native_functions:
             if not g.out.ufunc_inner_loop or not is_ufunc_dispatch_key(dispatch_key):
                 continue
@@ -2096,7 +2137,7 @@ TORCH_LIBRARY_IMPL({namespace}, {dispatch_key}, m) {{
     if force_schema_registration:
         schema_selector = SelectiveBuilder.get_nop_selector()
 
-    ns_native_functions: Dict[str, List[NativeFunction]] = defaultdict(list)
+    ns_native_functions: Dict[str, List[NativeFunction]] = defaultdict(list)        # 按照namespace划分 一般都是aten
     for native_function in native_functions:
         ns_native_functions[native_function.namespace].append(native_function)
     schema_registrations = ""
@@ -2122,6 +2163,8 @@ TORCH_LIBRARY_IMPL({namespace}, {dispatch_key}, m) {{
 TORCH_LIBRARY({custom_namespace}, m) {{
   {tab.join(schema_registrations_body)}
 }};"""
+
+            # 这里是 Dispatcher的所有 m.def(xxxx) 定义算子
     cpu_fm.write(
         "RegisterSchema.cpp",
         lambda: {
@@ -2133,11 +2176,12 @@ TORCH_LIBRARY({custom_namespace}, m) {{
             else schema_registrations,
         },
     )
+    ######## RegisterSchema 用于记录op ， 调用 m.def(xxxxx)
 
     def key_func(
         fn: Union[NativeFunction, NativeFunctionsGroup, NativeFunctionsViewGroup]
     ) -> str:
-        return fn.root_name
+        return fn.root_name # 去除 out,inplace变体的基本op名称
 
     cpu_fm.write_sharded(
         "Operators.cpp",
@@ -2147,7 +2191,7 @@ TORCH_LIBRARY({custom_namespace}, m) {{
             "operator_headers": [f"#include <ATen/ops/{fn.root_name}.h>"],
             "definitions": [
                 ComputeOperators(
-                    Target.DEFINITION,
+                    Target.DEFINITION,  # 写入定义 （实现）
                     static_dispatch_backend_indices=static_dispatch_idx,
                 )(fn)
             ],
@@ -2252,6 +2296,7 @@ TORCH_LIBRARY({custom_namespace}, m) {{
         if f.func.name not in structured_map and f.func.name not in view_map:
             all_groups.append(f)
 
+    # 这个没看 不知道什么是 Functionalization
     cpu_fm.write_sharded(
         "RegisterFunctionalization.cpp",
         all_groups,
@@ -2484,6 +2529,7 @@ def main() -> None:
 
     # 解析完native_functions.yaml后的内容
     parsed_yaml = parse_native_yaml(native_yaml_path, tags_yaml_path, ignore_keys)
+
     valid_tags = _GLOBAL_PARSE_TAGS_YAML_CACHE[tags_yaml_path]
     native_functions, backend_indices = (
         parsed_yaml.native_functions,
@@ -2496,6 +2542,7 @@ def main() -> None:
     structured_native_functions = [
         g for g in grouped_native_functions if isinstance(g, NativeFunctionsGroup)
     ]
+    # print(structured_native_functions)
     native_functions_with_view_groups = get_grouped_by_view_native_functions(
         native_functions
     )
@@ -2563,7 +2610,9 @@ def main() -> None:
                 functions_keys.add(dp_key)
 
     # 下面开始生成代码，下面开始生成代码，下面开始生成代码，下面开始生成代码，下面开始生成代码，下面开始生成代码
+    print(functions_keys)
     if "sources" in options.generate:
+        # 生成 RegisterCPU.cpp RegisterCUDA.cpp RegisterSparseCPU.cpp 这种...
         gen_source_files(
             native_functions=native_functions,
             grouped_native_functions=grouped_native_functions,

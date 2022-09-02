@@ -197,6 +197,9 @@ TORCH_API void create_cpp_hook(const at::TensorBase&);
 /// metadata fields that are necessary for tracking the Variable's autograd
 /// history. As an optimization, a Variable may store a nullptr, in lieu of a
 /// default constructed AutogradMeta.
+/// 每个`Variable`都有一个唯一的`AutogradMeta`结构体，
+/// 它存储了跟踪Variable的自动grad历史所必需的自动grad元数据字段。
+/// 作为一种优化，变量可以存储一个nullptr，而不是默认构造的AutogradMeta。
 
 struct TORCH_API AutogradMeta : public c10::AutogradMetaInterface {
   std::string name_;
@@ -219,12 +222,14 @@ struct TORCH_API AutogradMeta : public c10::AutogradMetaInterface {
   std::vector<std::shared_ptr<FunctionPreHook>> hooks_;
   std::shared_ptr<hooks_list> cpp_hooks_list_;
 
-  // Only meaningful on leaf variables (must be false otherwise)
+  // 仅在叶变量上有意义(其它情况为假)
   bool requires_grad_;
 
   // Only meaningful on non-leaf variables (must be -1 otherwise)
   // The value of retains_grad_ indicates the index of it in cpp_hooks_list_
   // A value of -1 indicates that the tensor does not retain grad
+  // 仅对非叶变量有意义(否则必须为-1)。
+  // retains_grad_的值表示它在cpp_hooks_list_中的索引。-1的值表示张量不保留grad
   int64_t retains_grad_;
 
   bool is_view_;

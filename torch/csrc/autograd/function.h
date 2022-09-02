@@ -62,6 +62,8 @@ class NodeGuard {
 // functions in PyTorch's autograd machinery derive from this class and
 // override its `apply` method. Instances of such subclasses will then be
 // invokeable via the call operator.
+// 一个' Node '是一个抽象类，它表示一个操作，接受零或多个输入' Variable '，并产生零或多个输出' Variable '。
+// PyTorch的autograd机制中的所有函数都派生自这个类，并覆写它的' apply '方法。这样的子类的实例就可以通过调用操作符调用了。
 //
 //                    Nodes in the Autograd Graph
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -72,6 +74,9 @@ class NodeGuard {
 // of the graph. When two or more `Edge`s (from different sources) point at the
 // same input to a `Node`, the values produced along all of these edges are
 // implicitly summed prior to being forwarded to the target `Node`.
+// 当将自动grad系统视为一个图时，“节点”是顶点或节点，通过(定向)相互连接。
+// '边'，边本身通过 (`Node`, input_nr) 对表示。'变量'是'节点'的输出和输入，并在图执行期间在这些边之间移动。
+// 当两个或多个“边”(来自不同的来源)指向一个“节点”的相同输入时，所有这些边产生的值在转发到目标“节点”之前会隐式求和。
 //
 //                              Hierarchy
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -83,17 +88,25 @@ class NodeGuard {
 // *sink*: it takes one input, but produces no outputs, instead accumulating
 // the input as a side effect. At the other extreme, the `GraphRoot` function
 // receives no inputs from other functions, but produces multiple outputs.
+// 子类通常代表可微函数以及它们的梯度算子。但是，请注意，由于' Node '的定义非常普遍，
+// 它接受零或多个输入，并产生零或多个输出，因此' Node '的使用是灵活的，并扩展到纯数学操作之外。
+// 例如，' AccumulateGrad '函数是一个接收器:它接受一个输入，但不产生输出，而是作为一个副作用积累输入。
+// 在另一种极端情况下，' GraphRoot '函数不接收来自其他函数的输入，但产生多个输出。
 //
 //                              Interface
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // The most important method on `Node` is the call operator, which takes in
 // a list of variables and produces a list of variables. The precise size of
 // these lists can be determined with `num_inputs()` and `num_outputs()`.
+// ' Node '上最重要的方法是调用操作符，它接受一个变量列表并生成一个变量列表。
+// 这些列表的精确大小可以通过' num_inputs() '和' num_outputs() '来确定。
 // `Node`s are stitched together via their `next_edge` interface, which let
 // you manipulate the set of outgoing edges of a `Node`. You can add an
 // edge with `add_next_edge()`, retrieve an edge with `next_edge(index)` and
 // iterate over them via the `next_edges()` method. Other methods exist for
-// integration with the JIT and other parts of PyTorch. Every `Node` has a
+// integration with the JIT and other parts of PyTorch.
+//
+// Every `Node` has a
 // *sequence number* that increases monotonically in the order of `Node`
 // construction. It can be retrieved via the `sequence_nr()` method. Note that
 // this sequence number is *thread local*. This means that when `Node`s
@@ -142,8 +155,7 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
   Node& operator=(Node&& other) = delete;
   virtual ~Node() = default;
 
-  /// Evaluates the function on the given inputs and returns the result of the
-  /// function call.
+  /// 根据给定的输入计算函数，并返回函数调用的结果。
   variable_list operator()(variable_list&& inputs) {
     // In the first iteration of named tensors, autograd ignores names and
     // operates on unnamed tensors. In the long term, autograd should
@@ -202,7 +214,7 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
     return input_nr;
   }
 
-  /// Adds a placeholder for an input that will not be used.
+  /// 添加一个空的位置
   uint32_t add_input_metadata(undefined_input u) noexcept {
     // NOLINTNEXTLINE(cppcoreguidelines-init-variables)
     uint32_t input_nr = input_metadata_.size();
@@ -222,6 +234,7 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
    * Note: Function Streams
    * A function's stream (for a given device type) is the stream of the first
    * element of its input buffer on a device of that type.
+   * 一个函数的流(对于给定的设备类型)是该类型设备上它的输入缓冲区的第一个元素的流。
    *
    * If all elements are on the same device they MUST share a stream. If
    * elements are on different devices (across multiple GPUs, for example)
@@ -251,7 +264,7 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
     Node* node = edge.function.get();
     if (node) {
       auto topo_nr = node->topological_nr();
-      if (topological_nr_ <= topo_nr) {
+      if (topological_nr_ <= topo_nr) { // 这个Node的拓扑id需要比其他节点的大
         topological_nr_ = topo_nr + 1;
       }
     }
@@ -290,12 +303,12 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
     return next_edges_.size();
   }
 
-  // Miscellaneous Methods
+  // 各种各样的方法
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   /// NOTE [ Sequence Number]
   ///
-  /// The sequence_nr has two main usages in autograd:
+  /// sequence_nr在autograd中有两个主要用法:
   ///
   /// 1) Helps determine the node's execution priority in the engine.
   ///    All else being equal, nodes with higher priority numbers are executed
@@ -303,6 +316,9 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
   ///    be executed in the backward pass. One caveat is that we prioritize
   ///    AccumulateGrad nodes by explicitly setting its sequence_nr to be
   ///    UINT64_MAX.
+  ///    帮助确定节点在引擎中的执行优先级。在其他条件相同的情况下，具有较高优先级数字的节点将首先执行。
+  ///    因此，与稍后执行的操作对应的节点将在向后传递中第一个执行。
+  ///    一个警告是，我们通过显式设置它的sequence_nr的UINT64_MAX来优先考虑AccumulateGrad节点。
   /// 2) The sequence number of this `Node` is paired with with thread_id it was
   /// created in
   ///    as a unique identifier by the profiler to annotate recorded events.
@@ -311,6 +327,9 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
   ///    forward ops. We need both sequence_nr and thread_id to identify a node
   ///    because sequence_nr is thread_local, i.e., starts counting up from zero
   ///    in a new thread
+  ///    这个“节点”的序列号与thread_id配对，它是由分析器创建的，作为注释所记录事件的唯一标识符。
+  ///    这样做的目的是帮助用户(可能还有程序)解释分析器的输出，以便将向后节点与其向前操作关联起来。
+  ///     我们需要sequence_nr和thread_id来标识一个节点，因为sequence_nr是thread_local，也就是说，在一个新线程中从0开始计数
   uint64_t sequence_nr() const noexcept {
     return sequence_nr_;
   }
@@ -320,6 +339,7 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
   // topological_nr is used to prune branches in the DAG during autograd
   // discovery as maintaining topological_nr helps us check in O(1) if there
   // does NOT exist a directed path between two nodes.
+  // topological_nr 用于自grad发现时对DAG中的分支进行修剪，因为维护topological_nr可以帮助我们在两个节点之间不存在有向路径时检入O(1)。
   //
   // The topological order number of this `Node` representing the length of the
   // longest possible path from this Node to any leaf node. If you are leaf
@@ -327,6 +347,10 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
   // that For every pair of nodes X, Y in G, existence of a directed path from X
   // to Y implies topo_nr(X) > topo_nr(Y). The converse is not true, however, so
   // we cannot prove existence of a path from X to Y, only non-existence.
+  // 这个“节点”的拓扑序号，表示从这个节点到任何叶节点的最长可能路径的长度。
+  // 如果你是叶节点，也就是AccumulateGrad，这将是零。
+  // 该值具有这样的性质:对于G中的每一对节点X, Y，存在从X到Y的有向路径意味着topo_nr(X) > topo_nr(Y)。
+  // 然而，反过来就不成立了，所以我们不能证明从X到Y的路径存在，只能证明不存在。
   //
   // One assumption we make when using topo_nr is that once a node
   // has been used, i.e., has a parent node, its own topo_nr does not change
@@ -353,7 +377,7 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
     return topological_nr_;
   }
 
-  // assigning a node as a parent to this node
+  // 将一个节点作为父节点分配给该节点
   void assign_parent();
 
   /// Id of the thread that created Node
@@ -364,14 +388,14 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
   /// Returns the name of the dynamic type of the function, for debugging.
   virtual std::string name() const;
 
-  /// Returns true if the particular output edge is active, and that particular
-  /// output of this function should be computed.
+  /// 如果特定的输出边是活动的，并且该函数的特定输出应该被计算，则返回true。
   bool should_compute_output(size_t output_edge_index) const {
     TORCH_CHECK(output_edge_index < num_outputs(), "Index out of range");
     return next_edges_[output_edge_index].is_valid();
   }
 
   /// Returns true if any of the output edges in any of the ranges are active.
+  // 如果任何范围内的任何输出边都是活动的，则返回true。
   bool should_compute_output(std::initializer_list<IndexRange> idxs) const {
     return std::any_of(idxs.begin(), idxs.end(), [this](IndexRange range) {
       for (const auto i : c10::irange(range.first, range.second)) {
@@ -440,15 +464,14 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
     return pre_hooks_;
   }
 
-  // Customization Points for Subclasses
+  // Customization Points for Subclasses  子类的定制点
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  /// Releases saved variables if the operation won't be reused.
+  /// 如果操作不会被重用，则释放保存的变量。
   virtual void release_variables() {}
 
-  /// Called before an apply if `release_variables()` is going to be called.
-  /// Allows larger ops like `InterpreterAutogradFunction` to incrementally
-  /// release variables as they run.
+  /// 如果要调用' release_variables() '，则在apply之前调用。
+  /// 允许像' InterpreterAutogradFunction '这样的大型操作在运行时增量地释放变量。
   virtual void will_release_variables() {}
 
   /// Returns true if this function is traceable. An op is traceable if all
@@ -472,7 +495,7 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
   }
 
  protected:
-  /// Performs the `Node`'s actual operation.
+  /// 执行`Node`的实际操作。
   virtual variable_list apply(variable_list&& inputs) = 0;
 
   /// Calls `apply()`, but instruments it with tracing machinery.
@@ -483,8 +506,7 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
   // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes)
   const uint64_t sequence_nr_;
 
-  // See NOTE [ Topological Number ]
-  // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes)
+  // 拓扑序号是 从这个节点到某个叶节点的最长距离
   uint64_t topological_nr_ = 0;
 
   // Tracks whether this node has been added as the next_edge of another node
@@ -493,7 +515,7 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
   // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes)
   mutable bool has_parent_ = false;
 
-  // Id of the thread that created the instance
+  // 创建实例的线程Id
   // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes)
   uint64_t thread_id_ = 0;
 
@@ -515,6 +537,8 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
   // NodeTask from multiple CPU threads. It IS the user/developer responsibility
   // to take advantage of this mutex to protect the thread safety of their
   // autograd Node. The general strategy of thread safety on autograd Node:
+  // 这里，我们添加了一个线程互斥量来帮助保护Node的线程安全，这样，当从多个CPU线程执行相同的nodeask时，
+  // 不同的线程就不能竞争共享数据。用户开发人员有责任利用这个互斥来保护他们的自grad节点的线程安全。自格勒节点上线程安全的一般策略:
   //
   // 1. User should lock the mutex during Node::release_variables() if the Node
   // needs
@@ -569,7 +593,7 @@ struct TraceableFunction : public Node {
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 namespace detail {
-// Implementation of `collect_next_edges` (see below).
+// 'collect_next_edges' 的实现
 // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
 struct MakeNextFunctionList : IterArgs<MakeNextFunctionList> {
   edge_list next_edges;

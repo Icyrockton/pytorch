@@ -430,6 +430,15 @@ TEST(DispatchKeySet,icy){
   for (const auto& item : list){
     std::cout << item.offset << " " << item.mask << std::endl;
   }
+  auto keyset = DispatchKeySet(c10::DispatchKeySet::FULL);
+  std::vector<DispatchKey> set { DispatchKey::Undefined };
+  for(auto i : keyset){
+    set.emplace_back(i);
+  }
+  for(auto i : set){
+    std::cout << toString(i) << std::endl;
+    std::cout << getDispatchTableIndexForDispatchKey(i) << std::endl;
+  }
 //  std::cout << "hello" << std::endl;
 //  int g = numPerBackendFunctionalityKeys();
 //  std::cout << g << std::endl;

@@ -977,19 +977,19 @@ PyObject* initModule() {
   static struct PyModuleDef torchmodule = {
       PyModuleDef_HEAD_INIT, "torch._C", nullptr, -1, methods.data()};
   ASSERT_TRUE(module = PyModule_Create(&torchmodule));
-  ASSERT_TRUE(THPGenerator_init(module));
-  ASSERT_TRUE(THPException_init(module));
-  THPSize_init(module);
-  THPDtype_init(module);
-  THPDTypeInfo_init(module);
-  THPLayout_init(module);
-  THPMemoryFormat_init(module);
+  ASSERT_TRUE(THPGenerator_init(module)); // Gnerator的一系列东西
+  ASSERT_TRUE(THPException_init(module)); // Error的一些类
+  THPSize_init(module);                   // torch.Size这个类
+  THPDtype_init(module);                  // torch.dtype 这个类
+  THPDTypeInfo_init(module);              // torch.finfo torch.iinfo
+  THPLayout_init(module);                 // torch.layout
+  THPMemoryFormat_init(module);           // torch.memory_format
   THPQScheme_init(module);
-  THPDevice_init(module);
+  THPDevice_init(module);                 // torch.device
   THPStream_init(module);
   ASSERT_TRUE(THPVariable_initModule(module));
-  ASSERT_TRUE(THPFunction_initModule(module));
-  ASSERT_TRUE(THPEngine_initModule(module));
+  ASSERT_TRUE(THPFunction_initModule(module));      // torch/autograd/function.py 中的 _FunctionBase
+  ASSERT_TRUE(THPEngine_initModule(module));        // torch._C._EngineBase
   // NOTE: We need to be able to access OperatorExportTypes from ONNX for use in
   // the export side of JIT, so this ONNX init needs to appear before the JIT
   // init.

@@ -431,6 +431,7 @@ std::tuple<Tensor, Tensor, Tensor> batch_norm_backward_cpu_template(
 // _batch_norm_impl_index(_backward) are used in the JIT be able to keep the run-time selection
 // of backends, while enabling it to keep the information about the used backend, so that it can
 // use its corresponding backward implementation.
+// 在JIT中使用_batch_norm_impl_index(_backward)可以保持运行时对后端的选择，同时允许它保留所使用后端的信息，以便它可以使用相应的后端实现。
 // XXX: The indices of backends need to be kept synchronized between this function and its _backward.
 std::tuple<Tensor, Tensor, Tensor, Tensor, int64_t> _batch_norm_impl_index(
     const Tensor& input, const c10::optional<Tensor>& weight_opt /* optional */, const c10::optional<Tensor>& bias_opt /* optional */, const c10::optional<Tensor>& running_mean_opt /* optional */, const c10::optional<Tensor>& running_var_opt /* optional */,
@@ -442,7 +443,7 @@ std::tuple<Tensor, Tensor, Tensor, Tensor, int64_t> _batch_norm_impl_index(
   const Tensor& running_mean = c10::value_or_else(running_mean_opt, [] {return Tensor();});
   const Tensor& running_var = c10::value_or_else(running_var_opt, [] {return Tensor();});
 
-  auto num_features = input.sizes()[1];
+  auto num_features = input.sizes()[1]; // feature的个数
 
   if (input.numel() == 0) {
     Tensor reserve = at::empty({0}, input.options().dtype(kByte));
@@ -459,6 +460,7 @@ std::tuple<Tensor, Tensor, Tensor, Tensor, int64_t> _batch_norm_impl_index(
         out, save_mean, save_invstd, reserve, 0);
   }
 
+  // 检查feature是否匹配
   if (running_mean.defined()) {
     check_dims_match_num_input_features("running_mean", num_features, running_mean.numel());
   } else if (!training) {
@@ -669,10 +671,12 @@ std::tuple<Tensor, Tensor, Tensor> batch_norm_cpu(const Tensor& self, const c10:
     if (mixed_type) {
       check_mixed_data_type(self, weight, bias, running_mean, running_var);
       if (!train) {
+        // eval模式
         auto save_mean = at::empty({0}, self.options().dtype(kFloat));
         auto save_var = at::empty({0}, self.options().dtype(kFloat));
         return batch_norm_cpu_transform_input_template<BFloat16, float>(self, weight, bias, save_mean, save_var, running_mean, running_var, train, eps);
       } else {
+        // train模式
         auto save_stats = batch_norm_cpu_update_stats_template<BFloat16, float, InvStd>(self, running_mean, running_var, momentum, eps);
         return batch_norm_cpu_transform_input_template<BFloat16, float>(self, weight, bias, std::get<0>(save_stats), std::get<1>(save_stats), running_mean, running_var, train, eps);
       }

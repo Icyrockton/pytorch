@@ -172,6 +172,9 @@ namespace impl {
 // which means that we cannot construct an AutogradMeta from TensorImpl,
 // not even from the cpp file.  So we have to indirect it through a factory
 // function which will be initialized when we load libtorch.so.
+// 不幸的是，AutogradMeta与TensorImpl处于不同的编译单元 (libtorch.so vs libc10.so)，
+// 这意味着我们不能从TensorImpl构造一个AutogradMeta，甚至从cpp文件也不行。
+// 因此，我们必须通过一个工厂函数间接地实现它，该函数将在加载libtorch.so时初始化。
 
 struct C10_API AutogradMetaFactory {
   virtual ~AutogradMetaFactory() = default;
@@ -182,7 +185,7 @@ struct C10_API AutogradMetaFactory {
 };
 
 C10_API void SetAutogradMetaFactory(AutogradMetaFactory* factory);
-C10_API AutogradMetaFactory* GetAutogradMetaFactory();
+C10_API AutogradMetaFactory* GetAutogradMetaFactory();  // 获取 AutogradMetaFactory 的实例
 
 struct C10_API AutogradMetaFactoryRegisterer {
   explicit AutogradMetaFactoryRegisterer(AutogradMetaFactory* factory) {
@@ -231,12 +234,15 @@ struct C10_API NamedTensorMetaInterface {
 // Version counters are used to detect modifications to saved variables which
 // would result in incorrect gradient calculations. Version counters may be
 // shared between Variables:
+// 每个张量都有一个版本计数器。每当一个张量的数据或大小通过就地op发生变化时，版本计数器就会增加。
+// 版本计数器用于检测对保存的变量的修改，这些修改会导致不正确的梯度计算。版本计数器可以在变量之间共享:
 //
 // 1. A view shares the version counter of the base Variable,
 // 2. `x.detach()` shares the version counter of `x`,
 // 3. Unpacked saved variables share the version counter of the source.
 //
 // Version counters are not shared in these scenarios:
+// 在这些场景中不共享版本计数器:
 //
 // 1. When we replace a `Variable`'s underlying `Tensor` by calling
 // `set_data(...)`,
@@ -348,13 +354,10 @@ struct C10_API VariableVersion {
   }
 };
 
-// Forward declaration of TensorImpl needed for forward declaration of
-// C10_TensorImpl_Size_Check_Dummy_Class
+// C10_TensorImpl_Size_Check_Dummy_Class前向声明需要TensorImpl的前向声明
 struct C10_API TensorImpl;
 
-// Forward declaration needed because TensorImpl needs to be friends with
-// C10_TensorImpl_Size_Check_Dummy_Class in order to check the size
-// of its private fields.
+// 需要向前声明，因为TensorImpl需要与C10_TensorImpl_Size_Check_Dummy_Class为友元，以便检查其私有字段的大小。
 template <
     size_t cplusplus,
     size_t clang_ver_major,
@@ -367,13 +370,9 @@ template <
 class C10_TensorImpl_Size_Check_Dummy_Class;
 
 /**
- * NOTE: Some TensorImpl methods are small and not overridden in the
- * PyTorch codebase itself, but may theoretically need to be
- * overridden by third-party TensorImpl subclasses. This macro allows
- * users that need maximum performance and don't need these extension
- * points to disable them with a build-time flag. (In particular,
- * XLA's XLATensorImpl currently overrides these methods, so we can't
- * enable this flag by default.)
+ * 注意:有些TensorImpl方法很小，在PyTorch代码库本身中不会被重写，但理论上可能需要被第三方TensorImpl子类重写。
+ * 此宏允许需要最大性能,且不需要这些扩展点的用户在build时禁用它们。
+ * (特别地，XLA的XLATensorImpl目前覆盖了这些方法，所以我们不能在默认情况下启用这个标志。)
  */
 #ifdef C10_DISABLE_TENSORIMPL_EXTENSIBILITY
 #define TENSORIMPL_MAYBE_VIRTUAL
@@ -382,38 +381,46 @@ class C10_TensorImpl_Size_Check_Dummy_Class;
 #endif
 
 /**
- * The low-level representation of a tensor, which contains a pointer
- * to a storage (which contains the actual data) and metadata (e.g., sizes and
- * strides) describing this particular view of the data as a tensor.
+ * 张量的底层表示，它包含一个指向存储(storage)(包含实际数据)的指针
+ * 和元数据(metadata)(例如，大小和步长)，这些元数据作为一个张量来描述数据的这个特殊视图。
  *
- * Some basic characteristics about our in-memory representation of
- * tensors:
+ * 关于在内存中表示张量的一些基本特征:
  *
  *  - It contains a pointer to a storage struct (Storage/StorageImpl)
  *    which contains the pointer to the actual data and records the
  *    data type and device of the view.  This allows multiple tensors
  *    to alias the same underlying data, which allows to efficiently
  *    implement differing *views* on a tensor.
+ *    它包含一个指向存储结构(Storage/StorageImpl)的指针，
+ *    该存储结构包含指向实际数据的指针，并记录视图的数据类型和Device。
+ *    这允许多个张量别名相同的基础数据，这允许有效地实现张量的不同视图。
  *
  *  - The tensor struct itself records view-specific metadata about
  *    the tensor, e.g., sizes, strides and offset into storage.
  *    Each view of a storage can have a different size or offset.
+ *    张量结构本身记录关于张量的视图特定元数据，例如大小、步长和偏移量到存储中。
+ *    存储的每个视图可以有不同的大小或偏移量。
  *
  *  - This class is intrusively refcounted.  It is refcounted so that
  *    we can support prompt deallocation of large tensors; it is
  *    intrusively refcounted so that we can still perform reference
  *    counted operations on raw pointers, which is often more convenient
  *    when passing tensors across language boundaries.
+ *    这个类被强制引用计数。它被引用计数，这样我们就可以支持大张量的及时释放;
+ *    它被引入引用计数，因此我们仍然可以对原始指针执行引用计数操作，这在跨语言边界传递张量时通常更方便。
  *
  *  - For backwards-compatibility reasons, a tensor may be in an
  *    uninitialized state.  A tensor may be uninitialized in the following
  *    two ways:
+ *    由于向后兼容的原因，一个张量可能处于未初始化状态。一个张量可以通过以下两种方式未初始化:
  *
  *      - A tensor may be DTYPE UNINITIALIZED.  A tensor of this
  *        form has an uninitialized dtype.  This situation most
  *        frequently arises when a user writes Tensor x(CPU).  The dtype and
  *        is subsequently initialized when mutable_data<T>() is
  *        invoked for the first time.
+ *        一个张量可以是未初始化的DTYPE。这种形式的张量有一个未初始化的dtype。
+ *        这种情况最常出现在用户写张量x(CPU)的时候。dtype和随后在第一次调用mutable_data<T>()时初始化。
  *
  *      - A tensor may be STORAGE UNINITIALIZED.  A tensor of this form
  *        has non-zero size, but has a storage with a null data pointer.
@@ -423,6 +430,10 @@ class C10_TensorImpl_Size_Check_Dummy_Class;
  *        mutable_data<T>() is invoked.  A tensor with zero size is
  *        always storage initialized, because no allocation is necessary
  *        in this case.
+ *        一个张量可以是未初始化的存储。这种形式的张量具有非零的大小，但存储有一个空数据指针。
+ *        这种情况最常发生在用户调用Resize()或freemmemory()时。
+ *        这是因为在过去，咖啡因2执行延迟分配:直到调用mutable_data<T>()时才会分配数据。
+ *        一个大小为0的张量总是初始化存储，因为在这种情况下不需要分配。
  *
  *    All combinations of these two uninitialized states are possible.
  *    Consider the following transcript in idiomatic Caffe2 API:
@@ -436,11 +447,15 @@ class C10_TensorImpl_Size_Check_Dummy_Class;
  *    size is always valid. (Historically, a tensor declared as Tensor x(CPU)
  *    also had uninitialized size, encoded as numel == -1, but we have now
  *    decided to default to zero size, resulting in numel == 0).
+ *    张量上的所有其他字段总是初始化的。特别是，size总是有效的。
+ *    (历史上，一个声明为张量x(CPU)的张量也有未初始化的大小，编码为numel == -1，但我们现在决定默认为零大小，导致numel == 0)。
  *
  *    Uninitialized storages MUST be uniquely owned, to keep our model
  *    simple.  Thus, we will reject operations which could cause an
  *    uninitialized storage to become shared (or a shared storage to
  *    become uninitialized, e.g., from FreeMemory).
+ *    未初始化的存储必须唯一拥有，以保持我们的模型简单。
+ *    因此，我们将拒绝可能导致一个未初始化的存储变为共享的操作(或者一个共享存储变为未初始化的操作，例如从freemmemory中)。
  *
  *    In practice, tensors which are storage-UNINITIALIZED and
  *    dtype-UNINITIALIZED are *extremely* ephemeral: essentially,
@@ -456,11 +471,8 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   TensorImpl() = delete;
   virtual ~TensorImpl() override;
   // Note [Enum ImplType]
-  // This enum is temporary. In the followup refactor we should
-  // think about how to specialize TensorImpl creation for view
-  // tensors. Currently we only special case its key_set_ but
-  // there's also potential to share version_counter_ directly
-  // without creating first and then override in as_view.
+  // 这个enum是临时的。在后续的重构中，我们应该考虑如何专门化视图张量的TensorImpl创建。
+  // 目前我们只对它的key_set_进行特殊处理，但也有可能直接共享version_counter_，而不需要先创建然后在as_view中重写。
   enum ImplType { VIEW };
 
   /**
@@ -479,7 +491,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
       const caffe2::TypeMeta data_type);
 
   /**
-   * Construct a 1-dim 0 size tensor that doesn't have a storage.
+   * 构造一个1-dim的0大小的张量，它没有存储空间。
    */
   TensorImpl(
       DispatchKeySet,
@@ -507,6 +519,8 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   // storage.  Still, we pass it in separately because it's easier to write
   // the initializer list if we're not worried about storage being moved out
   // from under us.
+  // 这个构造函数是私有的，因为data_type与存储是冗余的。
+  // 尽管如此，我们还是分开传递它，因为如果我们不担心存储被移出，就更容易编写初始化列表。
   TensorImpl(
       Storage&& storage,
       DispatchKeySet,
@@ -523,6 +537,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    * Release (decref) storage, and any other external allocations.  This
    * override is for `intrusive_ptr_target` and is used to implement weak
    * tensors.
+   * 释放(decref)存储以及任何其他外部分配。这个覆盖是针对 `intrusive_ptr_target` 的，用于实现弱引用张量
    */
   void release_resources() override;
 
@@ -542,6 +557,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   /**
    * Return a reference to the sizes of this tensor.  This reference remains
    * valid as long as the tensor is live and not resized.
+   * 返回对这个张量大小的引用。只要张量处于活动状态且没有调整大小，这个引用就仍然有效。
    */
   IntArrayRef sizes() const {
     if (C10_UNLIKELY(
@@ -567,6 +583,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   /**
    * Return a reference to the strides of this tensor.  This reference remains
    * valid as long as the tensor is live and not restrided.
+   * 返回对该张量的步长的引用。只要张量处于活动状态且没有调整步长，这个引用就仍然有效。
    */
   IntArrayRef strides() const {
     if (C10_UNLIKELY(
@@ -578,9 +595,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   }
 
   /**
-   * Return the size of a tensor at some dimension, wrapping the dimension if
-   * necessary.
-   *
+   * 返回某一维度的size
    * NOTE: if you know wrapping is unnecessary, do sizes()[d] instead; it will
    * be faster
    */
@@ -623,8 +638,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   }
 
   /**
-   * Return the number of dimensions of this tensor.  Note that 0-dimension
-   * represents a Tensor that is a Scalar, e.g., one that has a single element.
+   * 返回这个张量的维数(dimension)。注意，0维表示一个张量，它是一个标量，例如，它有一个元素。
    */
   int64_t dim() const {
     if (C10_UNLIKELY(
@@ -636,7 +650,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   }
 
   /**
-   * The number of elements in a tensor.
+   * tensor里面的元素个数
    *
    * WARNING: Previously, if you were using the Caffe2 API, you could
    * test numel() == -1 to see if a tensor was uninitialized.  This
@@ -654,10 +668,12 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
 
   /**
    * Whether or not a tensor is laid out in contiguous memory.
+   * 一个张量是否被放置在连续内存中。
    *
    * Tensors with non-trivial strides are not contiguous.  See
    * compute_contiguous() for the exact definition of whether or not
    * a tensor is contiguous or not.
+   * 具有非平凡步长的张量是不相邻的。关于一个张量是否连续的确切定义，请参阅compute_contious()。
    */
   bool is_contiguous(
       at::MemoryFormat memory_format = at::MemoryFormat::Contiguous) const {
@@ -668,13 +684,13 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
     }
     return is_contiguous_default(memory_format);
   }
-
+  // 返回stride的引用
   inline IntArrayRef strides_default() const {
     return c10::IntArrayRef(
         reinterpret_cast<const int64_t*>(sizes_and_strides_.strides_data()),
         sizes_and_strides_.size());
   }
-
+  // 返回size的引用
   inline IntArrayRef sizes_default() const {
     return c10::IntArrayRef(
         reinterpret_cast<const int64_t*>(sizes_and_strides_.sizes_data()),
@@ -691,6 +707,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   /**
    * Customization points for the functions above.  sizes_strides_policy_
    * must be set to enable these.
+   * 以上功能的定制点。必须设置Sizes_strides_policy_以启用它们。
    *
    * NB: dim is overrideable separately from sizes because it is possible
    * for a tensor to have rank, but not well defined sizes.
@@ -724,8 +741,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   virtual int64_t dim_custom() const;
   virtual int64_t numel_custom() const;
 
-  // These are factored into separate functions in case subclasses
-  // want to use them
+  // 它们被分解成单独的函数，以防子类想要使用它们
   inline bool is_contiguous_default(at::MemoryFormat memory_format) const {
     TORCH_INTERNAL_ASSERT_DEBUG_ONLY(compute_contiguous() == is_contiguous_);
     if (memory_format == at::MemoryFormat::ChannelsLast) {
@@ -781,9 +797,10 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    * Return the underlying storage of a Tensor.  Multiple tensors may share
    * a single storage.  A Storage is an impoverished, Tensor-like class
    * which supports far less operations than Tensor.
+   * 返回一个张量的底层存储。多个张量可以共享一个存储空间。
+   * Storage是一个贫瘠的、类似于张量的类，它支持的操作比张量少得多。
    *
-   * Avoid using this method if possible; try to use only Tensor APIs to perform
-   * operations.
+   * 尽量避免使用这种方法;尝试只使用张量API来执行操作。
    */
   TENSORIMPL_MAYBE_VIRTUAL const Storage& storage() const {
     if (C10_UNLIKELY(storage_access_should_throw_)) {
@@ -1035,15 +1052,16 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   }
 
   /**
-   * True if a tensor was auto-wrapped from a C++ or Python number.
-   * For example, when you write 't + 2', 2 is auto-wrapped into a Tensor
-   * with `is_wrapped_number_` set to true.
+   * 如果一个张量是从c++或Python数字自动包装的，则为True。
+   * 例如，当你写't + 2'时，2会自动包装成一个张量，其中 `is_wrapped_number_` 设置为true。
    *
    * Wrapped numbers do not participate in the result type computation for
    * mixed-type operations if there are any Tensors that are not wrapped
    * numbers.  This is useful, because we want 't + 2' to work with
    * any type of tensor, not just LongTensor (which is what integers
    * in Python represent).
+   * 如果存在任何非包装数的张量，则包装数不参与混合类型操作的结果类型计算。
+   * 这很有用，因为我们想让't + 2'处理任何类型的张量，而不仅仅是LongTensor(这是Python中整数表示的)。
    *
    * Otherwise, they behave like their non-wrapped equivalents.
    * See [Result type computation] in TensorIterator.h.
@@ -1053,6 +1071,8 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    * the amount of code we have to write for add, when actually
    * a Tensor-Scalar addition is really just a Tensor-Tensor
    * addition when the RHS is 0-dim (except for promotion behavior.)
+   * 为什么我们选择包装的数字，而不是仅仅有一个额外的函数add(Tensor, Scalar)?
+   * 这有助于大大减少我们为add编写的代码量，当RHS为0-dim时，实际上一个张量-标量相加实际上只是一个张量-张量相加(提升行为除外)。
    */
   bool is_wrapped_number() const {
     return is_wrapped_number_;
@@ -1087,7 +1107,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   // incomplete type.
 
   /**
-   * Set whether or not a tensor requires gradient.
+   * 设置一个张量是否需要梯度。
    */
   void set_requires_grad(bool requires_grad);
 
@@ -1097,23 +1117,28 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    * we can automatically differentiate back to them.  A tensor that
    * requires gradient and has no history is a "leaf" tensor, which we
    * accumulate gradients into.
+   * 如果一个张量需要梯度，则为真。需要梯度的张量对对它们执行的任何操作都有历史跟踪，
+   * 因此我们可以自动地对它们进行微分。一个需要梯度且没有历史的张量是一个“叶”张量，我们将梯度积累到它。
    */
   bool requires_grad() const;
 
   /**
    * Return a mutable reference to the gradient.  This is conventionally
    * used as `t.grad() = x` to set a gradient to a completely new tensor.
+   * 返回一个对梯度的可变引用。这通常被用作' t.grad() = x '来设置一个梯度到一个全新的张量。
    */
   at::Tensor& mutable_grad();
 
   /**
    * Return the accumulated gradient of a tensor.  This gradient is written
    * into when performing backwards, when this tensor is a leaf tensor.
+   * 返回一个张量的累积梯度。当这个张量是叶张量时，这个梯度就被写下来了。
    */
   const at::Tensor& grad() const;
 
   /**
    * Whether or not the imaginary part of the tensor should be negated
+   * 张量的虚部是否应该被消掉
    */
   inline bool is_conj() const {
     constexpr auto conjugate_ks = DispatchKeySet(DispatchKey::Conjugate);
@@ -1165,6 +1190,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   /**
    * Set whether or not to take the conjugate of the tensor (flip the imaginary
    * bit).
+   * 设置是否取张量的共轭(反转虚位)。
    */
   void _set_neg(bool value) {
     if (value) {
@@ -1177,8 +1203,9 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   /**
    * Return the accumulated gradient of a tensor. This gradient is computed
    * using forward mode AD.
+   * 返回一个张量的累积梯度。这个梯度是使用正向模式AD计算的。
    *
-   * This is an internal API that should never be used by end users.
+   * 这是一个永远不应该被用户使用的内部API。
    *
    * The API is as follows:
    *   - "level" allows to specify the level of forward AD nesting for which the
@@ -1186,6 +1213,9 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    *     supported yet, this argument should be 0. See documentation for
    *     torch::autograd::enter_dual_level for more details about forward AD
    * nesting.
+   *     "level"允许指定应该返回梯度的前向AD嵌套的级别。
+   *     注意，由于还不完全支持级别，这个参数应该是0。请参阅torch::autograd::enter_dual_level文档了解AD正向嵌套的更多细节。
+   *
    *   - "self" should represent the Tensor whose forward grad is accessed. It
    * is required when dealing with view.
    */
@@ -1218,9 +1248,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
       bool is_inplace_op);
 
   /**
-   * Return a typed data pointer to the actual data which this tensor refers to.
-   * This checks that the requested type (from the template parameter) matches
-   * the internal type of the tensor.
+   * 返回一个类型化数据指针，指向该张量所指向的实际数据。这将检查所请求的类型(来自模板参数)是否与张量的内部类型匹配。
    *
    * It is invalid to call data() on a dtype-uninitialized tensor, even if
    * the size is 0.
@@ -1246,6 +1274,8 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    * More efficient helper for Tensor::data_ptr(). Like data<T>(), but
    * does not do a type check. Unlike the untemplated data(), does
    * check has_storage() and storage_initialized().
+   * 为张量::data_ptr()提供更有效的helper。类似于data<T>()，但不进行类型检查。
+   * 与未模板化的data()不同，它会检查has_storage()和storage_initialized()
    */
   template <typename T>
   inline T* data_ptr_impl() const {
@@ -1300,15 +1330,14 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   }
 
   /**
-   * Returns the TypeMeta of a tensor, which describes what data type
-   * it is (e.g., int, float, ...)
+   * 返回一个张量的TypeMeta，描述它是什么数据类型(例如，int, float，…)
    */
   const caffe2::TypeMeta dtype() const {
     return data_type_;
   }
 
   /**
-   * Return the size of a single element of this tensor in bytes.
+   * 返回单个元素的字节大小
    */
   size_t itemsize() const {
     TORCH_CHECK(
@@ -1331,8 +1360,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
 
  protected:
   /**
-   * Returns the human-readable name of the actual type of this object (e.g.,
-   * TensorImpl, BatchedTensorImpl, etc.). Used for error messages.
+   * 返回该对象实际类型的可读的名称(例如，TensorImpl, BatchedTensorImpl等)。用于错误消息。
    */
   virtual const char* tensorimpl_type_name() const {
     return "TensorImpl";
@@ -1359,6 +1387,8 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    * Change the size at some dimension.  This DOES NOT update strides;
    * thus, most changes to size will not preserve contiguity.  You probably
    * also want to call set_stride() when you call this.
+   * 在某个维度上改变大小。
+   * 这并不更新步长;因此，对大小的大多数更改都不会保留连续性。当你调用这个时，你可能还想调用set_stride()。
    *
    * TODO: This should be jettisoned in favor of `set_sizes_and_strides`,
    * which is harder to misuse.
@@ -1410,7 +1440,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   }
 
   /**
-   * Like set_sizes_and_strides but assumes contiguous strides.
+   * 类似于set_sizes_and_strides，但假设步长是连续的。
    *
    * WARNING: This function does not check if the requested
    * sizes/strides are in bounds for the storage that is allocated;
@@ -1437,7 +1467,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   }
 
   /**
-   * Set the sizes and strides of a tensor.
+   * 设置一个张量的大小和步长。
    *
    * WARNING: This function does not check if the requested
    * sizes/strides are in bounds for the storage that is allocated;
@@ -1511,7 +1541,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   }
 
   /**
-   * Set the pointer to autograd metadata.
+   * 设置指向autograd metadata的指针
    */
   void set_autograd_meta(
       std::unique_ptr<c10::AutogradMetaInterface> autograd_meta);
@@ -1765,6 +1795,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
 
   // Query the PyObject interpreter.  This may return null if there is no
   // interpreter.  This is racy!
+  // 查询PyObject解释器。如果没有解释器，则返回null。这是生动的!
   impl::PyInterpreter* pyobj_interpreter() {
     return pyobj_interpreter_.load(std::memory_order_acquire);
   }
@@ -1837,13 +1868,13 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   }
 
   /**
-   * @brief Extends the outer-most dimension of this tensor by num elements,
-   * preserving the existing data.
+   * @brief 将这个张量的最外层维度扩展num个元素，保留现有数据。
    *
    * The underlying data may be reallocated in order to accommodate the new
    * elements, in which case this tensors' capacity is grown at a factor of
    * growthPct. This ensures that Extend runs on an amortized O(1) time
    * complexity.
+   * 底层数据可以重新分配以容纳新元素，在这种情况下，该张量的容量以增长因子pct增长。这确保了Extend在平摊的O(1)时间复杂度上运行。
    *
    * This op is auto-asynchronous if the underlying device (CUDA) supports it.
    */
@@ -1858,17 +1889,18 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   void ReserveSpace(int64_t outer_dim);
 
   /**
-   * @brief Resizes a tensor.
+   * @brief Resizes 一个 tensor.
    *
-   * Resize takes in a vector of ints specifying the dimensions of the tensor.
-   * You can pass in an empty vector to specify that it is a scalar (i.e.
-   * containing one single item).
+   * Resize接受一个指定张量维数的int型向量。您可以传入一个空向量来指定它是一个标量(即包含单个项)。
    *
    * The underlying storage may be deleted after calling Resize: if the new
    * shape leads to a different number of items in the tensor, the old memory
    * is deleted and new memory will be allocated next time you call
    * mutable_data(). However, if the shape is different but the total number of
    * items is the same, the underlying storage is kept.
+   * 在调用Resize之后，底层存储可能会被删除:如果新的形状导致张量中的项数不同，
+   * 那么旧的内存将被删除，而新的内存将在下次调用mutable_data()时被分配。
+   * 但是，如果shape不同但item总数相同，则保留底层存储。
    *
    * This method respects caffe2_keep_on_shrink.  Consult the internal logic
    * of this method to see exactly under what circumstances this flag matters.
@@ -1887,15 +1919,12 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   }
 
   /**
-   * Resizes the tensor without touching underlying storage.
-   * This requires the total size of the tensor to remains constant.
+   * 在不影响底层存储的情况下调整张量的大小。这要求张量的总大小保持不变。
    */
   void Reshape(const std::vector<int64_t>& dims);
 
   /**
-   * Release whatever memory the tensor was holding but keep size and type
-   * information. Subsequent call to mutable_data will trigger new memory
-   * allocation.
+   * 释放张量所持有的内存，但保留大小和类型信息。后续调用 mutable_data 方法将触发新的内存分配。
    */
   void FreeMemory();
 
@@ -1926,9 +1955,11 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    * calling mutable_data<T>() where the TypeMeta parameter meta is derived from
    * the type T. This function differs from mutable_data<T>() in the sense that
    * the type T can be specified during runtime via the TypeMeta object.
+   * 返回底层存储的可变原始指针。因为我们需要知道要分配的数据的类型，所以传入一个TypeMeta对象来指定必要的信息。
+   * 这在概念上相当于调用mutable_data<T>()，其中TypeMeta形参元派生自类型T。
+   * 此函数与mutable_data<T>()的区别在于，类型T可以在运行时通过TypeMeta对象指定
    *
-   * If the existing data does not match the desired type, it will be deleted
-   * and a new storage will be created.
+   * 如果现有数据与所需的类型不匹配，则将删除它，并创建一个新的存储(storage)。
    */
   inline void* raw_mutable_data(const caffe2::TypeMeta meta) {
     // For 0-size tensors it's fine to return any pointer (including nullptr)
@@ -1960,6 +1991,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
       if (allocator == nullptr) {
         allocator = GetAllocator(storage_.device_type());
       }
+      // 使用allocator 根据不同的设备类型分配新的内存
       if (meta.placementNew()) {
         // For types that need placement new, we will call it, as well as
         // making sure that when the data is freed, it calls the right
@@ -1986,8 +2018,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   /**
    * Returns a typed pointer of the underlying storage.
    *
-   * For fundamental types, we reuse possible existing storage if there
-   * is sufficient capacity.
+   * 对于基本类型，如果有足够的容量，则重用可能的现有存储。
    */
   template <typename T>
   inline T* mutable_data() {
@@ -2005,6 +2036,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   /**
    * True if a tensor is storage initialized.  A tensor may become
    * storage UNINITIALIZED after a Resize() or FreeMemory()
+   * 如果一个张量被初始化存储，则为True。在Resize()或freemmemory()之后，一个张量可以成为未初始化的存储。
    */
   bool storage_initialized() const {
     TORCH_CHECK(
@@ -2039,7 +2071,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   }
 
   /**
-   * Set the strides of the tensor to match memory_format
+   *  根据memory_format重新计算tensor的步长(stride)元信息
    *
    * WARNING: This function doesn't rearrange data and assumes tensor is a
    * memory contiguous
@@ -2055,26 +2087,26 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
         "called before setting correct numel");
 #endif
     switch (memory_format) {
-      case MemoryFormat::Contiguous: {
+      case MemoryFormat::Contiguous: {  // 连续的内存分布
         // dim_ is a virtual call, don't repeat it
-        const auto dim_ = dim();
+        const auto dim_ = dim();    // 这个张量的维度
         sizes_and_strides_.resize(dim_);
-        if (dim_ > 0) {
+        if (dim_ > 0) { // 大于0维
           const auto last_idx = dim_ - 1;
           sizes_and_strides_.stride_at_unchecked(last_idx) = 1;
           for (auto i = last_idx - 1; i >= 0; --i) {
             sizes_and_strides_.stride_at_unchecked(i) =
-                sizes_and_strides_.stride_at_unchecked(i + 1)
+                sizes_and_strides_.stride_at_unchecked(i + 1) // 这是stride
                     .as_int_unchecked() *
                 std::max<int64_t>(
-                    sizes_and_strides_.size_at_unchecked(i + 1)
+                    sizes_and_strides_.size_at_unchecked(i + 1)   // 这是size
                         .as_int_unchecked(),
                     1);
           }
         }
         break;
       }
-      case MemoryFormat::ChannelsLast: {
+      case MemoryFormat::ChannelsLast: {  // 必须是4维
         TORCH_CHECK(
             dim() == 4, "required rank 4 tensor to use channels_last format");
         set_sizes_and_strides(sizes(), get_channels_last_strides_2d(sizes()));
@@ -2113,12 +2145,11 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   }
 
  private:
+  // 底层的item总数发生了变化
   void HandleResize();
 
-  // The Caffe2 Resize() method supports being called both as Resize({2,2}) as
-  // well as variadic with Resize(2, 2).  These overloads provide all of the
-  // supported calling configurations, while being overloads (and not templates)
-  // so that implicit conversions still work.
+  // Caffe2 Resize()方法支持以Resize({2,2})和可变参数Resize(2,2)来调用。
+  // 这些重载提供了所有支持的调用配置，同时是重载(而不是模板)，因此隐式转换仍然有效。
   //
   // SetDims on ArrayRef is internally implemented as a template, so we can
   // handle both ArrayRefs of different types (there are some uses of
@@ -2134,13 +2165,13 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
 
     auto old_numel = numel_;
     sizes_and_strides_.resize(src.size());
-    int64_t new_numel = 1;
+    int64_t new_numel = 1;  // 新的总item数
     for (const auto i : c10::irange(src.size())) {
       new_numel *= src[i];
       sizes_and_strides_.size_at_unchecked(i) = src[i];
     }
     numel_ = new_numel;
-    empty_tensor_restride(MemoryFormat::Contiguous);
+    empty_tensor_restride(MemoryFormat::Contiguous);  // 重新计算stride
     return numel_ != old_numel;
   }
 
@@ -2172,6 +2203,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
     return SetDims(IntArrayRef{d0, d1, d2});
   }
 
+  // 如果 item的总数发生了变化 返回true
   bool SetDims(
       const int64_t d0,
       const int64_t d1,
@@ -2210,8 +2242,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   }
 
   /**
-   * Compute whether or not a tensor is contiguous based on the sizes and
-   * strides of a tensor.
+   * 根据张量的大小和步长计算一个张量是否连续。
    */
   bool compute_contiguous() const;
 
@@ -2251,6 +2282,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   /**
    * Recompute the cached contiguity of a tensor.  Call this if you modify sizes
    * or strides.
+   * 重新计算张量的缓存邻接性。修改size或stride时调用此函数。
    */
   void refresh_contiguous() {
     TORCH_CHECK(
@@ -2302,6 +2334,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   /**
    * Copy the tensor metadata fields (e.g. sizes / strides / storage pointer /
    * storage_offset) from one TensorImpl to another TensorImpl.
+   * 将张量元数据字段(例如大小/步长/storage pointer /storage_offset)从一个TensorImpl复制到另一个TensorImpl。
    *
    * For usage of `version_counter` and `allow_tensor_metadata_change`, see NOTE
    * [ TensorImpl Shallow-Copying ].
@@ -2392,14 +2425,20 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   // This pointer points to an AutogradMeta struct that stores autograd-specific
   // fields (such as grad_ / grad_fn_ / grad_accumulator_). This pointer always
   // has unique ownership (meaning only one TensorImpl can own it at a time).
+  // 这个指针指向一个AutogradMeta结构体，该结构体存储了 grad_ / grad_fn_ / grad_accumulator_ 等自定义字段。
+  // 这个指针总是拥有唯一的所有权(意味着一次只有一个TensorImpl可以拥有它)。
   //
   // autograd_meta_ can be nullptr, as an optimization.  When this occurs, it is
   // equivalent to having an autograd_meta_ pointing to a default constructed
   // AutogradMeta; intuitively, tensors which don't require grad will have this
   // field set to null.
+  // Autograd_meta_可以为nullptr，作为优化。当发生这种情况时，
+  // 它相当于有一个autograd_meta_指向一个默认构造的AutogradMeta;
+  // 直观地说，不需要梯度的张量会将这个字段设为null。
   //
   // This means accessors on autograd_meta_ have to be careful to test if they
   // got a nullptr, and handle default behavior appropriately in that case.
+  // 这意味着autograd_meta_上的访问器必须小心地测试它们是否得到了nullptr，并在这种情况下适当地处理默认行为。
   //
   // Note that we don't enforce the invariant that if the AutogradMeta is
   // default constructed, it is nullptr (to do this, we'd have to continuously
@@ -2463,17 +2502,16 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   // resurrection in torch/csrc/autograd/python_variable.cpp
   PyObject* pyobj_;
 
-  c10::impl::SizesAndStrides sizes_and_strides_;
+  c10::impl::SizesAndStrides sizes_and_strides_;  // 保存了size和stride
 
   int64_t storage_offset_ = 0;
-  // If sizes and strides are empty, the numel is 1!!  However, most of the
-  // time, we will immediately set sizes to {0} and reset numel to 0.
+
+  // 如果大小和步长为空，则数值为1!! 但是，大多数时候，我们会立即将size设置为{0}，并将numel重置为0
   // (Can't do that in the default initializers, because there's no way to
   // spell "allocate a one-element array" for strides_).
   int64_t numel_ = 1;
 
-  // INVARIANT: When storage is non-null, this type meta must
-  // agree with the type meta in storage
+  // INVARIANT: 不变量:当storage是非null时，该类型必须与storage中的类型一致
   caffe2::TypeMeta data_type_;
 
   // NOTE [c10::optional operator usage in CUDA]
@@ -2509,10 +2547,10 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
     has_symbolic_sizes_strides_ = false;
   }
 
-  // Tensor is contiguous
+  // Tensor是连续的
   bool is_contiguous_ : 1;
 
-  // Tensor is a subclass that does not permit storage access.
+  // Tensor is a subclass that does not permit storage access. 张量是一个不允许存储访问的子类。
   bool storage_access_should_throw_ : 1;
 
   // Tensor is stored in the channels last 2d memory format, when dimensions

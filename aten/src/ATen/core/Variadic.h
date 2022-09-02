@@ -17,6 +17,10 @@ namespace at {
 // take arguments of different types.  If your arguments
 // are homogenous consider using a std::initializer_list instead.
 //
+// 这个类允许您编写可变参数函数，按顺序对每个参数调用一个(可能是重载的)函数。
+// 这通常在自动生成代码中使用，在自动生成代码中，有一个函数可以统一地接受不同类型的参数，这很方便。
+// 如果参数是同质的，请考虑使用std::initializer_list。
+//
 // For examples of this in use, see torch/csrc/utils/variadic.h
 template <typename F>
 struct IterArgs {

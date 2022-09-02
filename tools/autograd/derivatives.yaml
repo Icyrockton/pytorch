@@ -11,21 +11,20 @@
 # the vector jacobian product using the given 'output gradient' as the vector.
 #
 # Each entry consists of:
-#   - A 'name', which specifies the ATen name of the function you
-#     are defining derivatives for, and an argument specification.
-#   - One or more gradients entries, mapping differentiable input
-#     names to a formula specifying how to compute its gradient.
-#     Note that a single gradient entry can specify the gradient
-#     formula for multiple input names, by specifying a key
-#     "input1, input2" (see atan2 for an example).
-#   - An argument can be flagged as 'non_differentiable'.
-#   - Optional entry with key 'output_differentiability' and value a list of the
-#     same length as the number of outputs from the forward function. The list
-#     should contain only booleans, specifying whether each of the output Tensor
-#     is differentiable.
+#   - 'name'，它指定了你要定义的导数函数的ATen名称，以及参数说明。
+#
+#   - 一个或多个导数项，将可微分的参数名称，映射到计算其梯度的公式。
+#     请注意，通过指定键“input1, input2”，单个导数条目可以为多个输入名称指定梯度公式(参见atan2中的示例)
+#
+#   - 一个参数可以被标记为不可微分的 'non_differentiable'
+#
+#   - 可选条目，'output_differentiability'，值为与forward函数输出数量相同的列表长度。
+#     列表应该只包含布尔值，指定每个输出张量是否可微。
 #     If it is not specified for a function that returns multiple elements but
 #     uses `grad` instead of `grads[idx]`, then all but the first output will
 #     be marked as non-differentiable.
+#     如果没有为返回多个元素的函数指定，
+#     而是使用' grad '而不是' grades [idx] '，那么除了第一个输出之外的所有输出都将被标记为不可微分。
 #     If None of the output is differentiable, you can also add the function
 #     name to `gen_variable_type.py`'s `DONT_REQUIRE_DERIVATIVE` list.
 #
@@ -47,10 +46,13 @@
 # definition for the in-place variant is optional. It will default to the
 # definition for the out-of-place variant. Note that _out variants are never
 # differentiable.
+# 如果一个function有out和in的变体，in变体的导数定义是可选的。
+# out变体会默认定义,out是永远不可微分的
 #
 # Gradient expressions are standard C++ expressions operating on ATen
 # variables.  In a gradient expression, the following variables are in
 # scope:
+# 梯度表达式是操作ATen变量的标准c++表达式。在梯度表达式中，以下变量在作用域中:
 #
 #   - 'grad', the gradient of the output (often spelled grad_output
 #     in Python) which we are going to left-multiply.
@@ -58,15 +60,18 @@
 #     When a function returns multiple *differentiable* outputs,
 #     you can refer to the gradients of each outputs using 'grads',
 #     e.g., 'grads[0]', 'grads[1]'.
+#     当一个函数返回多个*可微*输出时，你可以使用 'grads' 来引用每个输出的梯度，例如 'grads[0]'，'grads[1]'。
 #
 #     When a function returns multiple *differentiable* outputs that
 #     are named, you can refer to the gradients of each outputs using
 #     'grad_{name}', e.g., 'grad_x', 'grad_y'.
+#     当一个函数返回多个被命名的可微输出时，你可以使用 'grad_{name}' 来引用每个输出的梯度，例如 'grad_x'， 'grad_y'。
 #
 #     When a function returns *one* differentiable output (the
 #     first output) and some more nondifferentiable outputs,
 #     you MUST refer to the gradient of the differentiable output with
 #     'grad' (this case is special-cased in our code generation).
+#     当函数返回一个可微输出(第一个输出)和一些不可微输出时，必须使用'grad'来引用可微输出的梯度(这种情况在我们的代码生成中是特殊的)。
 #
 #     Note that the number of differentibale outputs can be modified by the
 #     'output_differentiability' entry (see above).
@@ -75,6 +80,7 @@
 #     permitted to mix the use of "grad", "grads", and
 #     "grad_{name}". You must be consistent for that differentiable
 #     function.
+#     在可微函数的导数集合中，不允许混合使用"grad","grads", "grad_{name}"。对于可微函数必须是一致的。
 #
 #   - Any of the input arguments, tensor or non-tensor, including
 #     argument names that only appear in Declarations.yaml, e.g. 'output'.
@@ -83,6 +89,7 @@
 #     expression for ATen native function declarations. If the forward
 #     expression outputs a tuple, use 'resultX' instead to access the
 #     X-th entry
+#     'result'，表示对ATen本机函数声明的正向表达式求值的结果。如果正向表达式输出一个元组，则使用 'resultX' 来访问第x个条目
 #
 #   - 'grad_input_mask', a std::array<bool, n>, specifies which input
 #     gradients are actually needed.  For example, in the entry
@@ -131,6 +138,8 @@
 # will always have their forward grad formula called. This function is responsible
 # to check if any computation is needed and should return an undefined Tensor when
 # there is nothing to do. You can check "cat_forward" for a full example.
+# 请注意，为了避免解包开销，以TensorList为输入的函数总是会调用它们的前向梯度公式。
+# 该函数负责检查是否需要进行任何计算，并在无事可做时返回一个未定义的张量。您可以查看“cat_forward”以获得完整的示例。
 #
 # NB: There are a number of gradient definitions in here which are bogus
 # (implemented using zeros_like).  These gradients are (hopefully) not

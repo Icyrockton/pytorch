@@ -7,16 +7,18 @@ namespace c10 {
 
 class SymbolicIntNode;
 
-// `SymInt` is a C++ wrapper class around int64_t data_ which  and is used to
-// represent concrete dimension values.
+// `SymInt` 是一个围绕int64_t data_的c++包装类，用于表示具体的维度(dimension)值。
 //
 // `SymInt` is also a data type in Pytorch that can be used in function schemas
 // to enable tracing.
+// `SymInt`也是Pytorch中的一种数据类型，可以在函数schema中使用来启用跟踪。
 //
 // `SymInt` is introduced to enable tracing arithmetic
 // operations on symbolic integers (e.g. sizes). Tracing symbolic sizes will
 // allow LTC and AOTAutograd representing dynamic shapes in expression graphs
 // faithfully without baking in concrete dimension values.
+// 引入' SymInt '是为了支持对符号整数(例如大小)进行算术操作。
+// 跟踪符号大小将允许LTC和AOTAutograd在表达式图中忠实地表示动态形状，而无需烘烤具体的维度值。
 //
 // To trace the operations, SymInt will overload arithmetic operators (e.g. +,
 // -, *) and will provide overloads taking SymInt for commonly used math
@@ -75,7 +77,7 @@ class C10_API SymInt {
   }
 
  private:
-  // Constraints on the internal representation:
+  // 内部表示的约束:
   // - Should represent positive and negative ints
   // - No conversion necessary for operations on ints.
   // - We reserve some values to act as indices into our sym int table.
@@ -93,6 +95,7 @@ class C10_API SymInt {
   static constexpr uint64_t MAX_SYM_IDX = 1ULL << 62;
   // Since 0b10... is reserved for symbolic indices, any integers lower than
   // this value would collide with our representation.
+  // 从 0b10... 为符号索引保留，任何低于此值的整数都将与我们的表示冲突。
   static constexpr int64_t MIN_INT = -1LL & ~(1ULL << 62);
   int64_t data_;
 };

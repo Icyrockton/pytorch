@@ -48,6 +48,7 @@ inline bool pinned_memory_or_default(c10::optional<bool> pinned_memory) {
 /// A class to encapsulate construction axes of an Tensor.  TensorOptions was
 /// designed to support the Python style API for specifying construction options
 /// on factory functions, e.g.,
+/// 一个类封装一个张量的构造轴。TensorOptions被设计为支持Python风格的API，用于在工厂函数上指定构造选项，例如:
 ///
 ///     torch.zeros(2, 3, dtype=torch.int32)
 ///
@@ -56,6 +57,8 @@ inline bool pinned_memory_or_default(c10::optional<bool> pinned_memory) {
 /// builder class which can be used to construct this "dictionary" of keyword
 /// arguments: functions which support TensorOptions conventionally take this
 /// argument optionally as their last argument.
+/// 因为c++本身不支持关键字参数，所以必须有另一种方式来指定类似关键字的参数。
+/// TensorOptions是一个构造器类，可以用来构造关键字参数的“字典”:支持TensorOptions的函数通常会选择性地将这个参数作为它们的最后一个参数。
 ///
 /// WARNING: In PyTorch, there are `torch::` variants of factory functions,
 /// e.g., torch::zeros for at::zeros.  These return Variables (while the
@@ -64,6 +67,7 @@ inline bool pinned_memory_or_default(c10::optional<bool> pinned_memory) {
 ///
 /// Rather than use the constructor of this class directly, you should prefer to
 /// use the constructor functions, and then chain setter methods on top of them.
+/// 与其直接使用该类的构造函数，不如使用构造函数，然后在其上使用链式setter方法。
 ///
 ///     at::device(at::kCUDA).dtype(kInt)
 ///     at::dtype(at::kInt)
@@ -71,6 +75,7 @@ inline bool pinned_memory_or_default(c10::optional<bool> pinned_memory) {
 /// Additionally, anywhere a TensorOptions is expected, you can directly
 /// pass at::kCUDA / at::kInt, and it will implicitly convert to a
 /// TensorOptions.
+/// 另外，任何需要TensorOptions的地方，你都可以直接在 at::kCUDA / at::kInt 中传递，它将隐式转换为TensorOptions。
 ///
 /// Here are some recommended ways to create a 2x2 tensor of zeros
 /// with certain properties.  These all *implicitly* make use of

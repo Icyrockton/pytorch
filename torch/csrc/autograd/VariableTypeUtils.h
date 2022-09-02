@@ -425,6 +425,11 @@ inline std::vector<SavedVariable> make_saved_variable_list(
       });
 }
 
+/**
+ * 记录每一个tensor的size
+ * @param tensors
+ * @return
+ */
 inline std::vector<std::vector<int64_t>> to_args_sizes(at::TensorList tensors) {
   std::vector<std::vector<int64_t>> args_sizes(tensors.size());
   for (const auto i : c10::irange(tensors.size())) {
@@ -433,6 +438,11 @@ inline std::vector<std::vector<int64_t>> to_args_sizes(at::TensorList tensors) {
   return args_sizes;
 }
 
+/**
+ * 记录每一个tensor的ScalarType
+ * @param tensors
+ * @return
+ */
 inline std::vector<c10::ScalarType> to_args_scalartypes(
     at::TensorList tensors) {
   std::vector<c10::ScalarType> args_scalartypes(tensors.size());

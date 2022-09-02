@@ -1283,8 +1283,8 @@ static PyTypeObject THPVariableFunctions = {
 
 void initTorchFunctions(PyObject* module) {
   static std::vector<PyMethodDef> torch_functions;
-  gatherTorchFunctions(torch_functions);
-  THPVariableFunctions.tp_methods = torch_functions.data();
+  gatherTorchFunctions(torch_functions);                    // 各种算子
+  THPVariableFunctions.tp_methods = torch_functions.data();     // 并且绑定到了 _TensorBase 的方法上
 
   if (PyType_Ready(&THPVariableFunctions) < 0) {
     throw python_error();

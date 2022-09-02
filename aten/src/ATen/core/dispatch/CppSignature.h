@@ -28,7 +28,7 @@ public:
         // See Note [Plumbing Keys Through The Dispatcher]
         using decayed_function_type = typename c10::remove_DispatchKeySet_arg_from_func<std::decay_t<FuncType>>::func_type;
 
-        return CppSignature(std::type_index(typeid(decayed_function_type)));
+        return CppSignature(std::type_index(typeid(decayed_function_type)));  // 这里使用了一个 typeid(....)
     }
 
     std::string name() const {

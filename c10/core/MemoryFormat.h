@@ -62,7 +62,7 @@ inline std::ostream& operator<<(
 // Note: Hardcoded the channel last stride indices here to get better
 // performance
 inline std::vector<int64_t> get_channels_last_strides_2d(IntArrayRef sizes) {
-  std::vector<int64_t> strides(sizes.size());
+  std::vector<int64_t> strides(sizes.size()); // 要计算的步长   (2,3,4,5)   (60,1,15,3)
   switch (sizes.size()) {
     case 4:
       strides[1] = 1;

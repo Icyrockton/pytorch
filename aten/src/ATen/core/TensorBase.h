@@ -35,7 +35,7 @@ namespace at {
 class Tensor;
 class TensorBase;
 
-// Convert Tensor to TensorBase without any need to include Tensor.h
+// 将Tensor转换为TensorBase而不需要 include Tensor.h
 TORCH_API const TensorBase& get_tensor_base(const Tensor& t);
 
 namespace impl {
@@ -56,16 +56,16 @@ inline bool variable_excluded_from_dispatch() {
 // every time an operator signature is updated or changed in
 // native_functions.yaml, you (and every other PyTorch developer) need
 // to recompile all of ATen and it's dependencies.
-// 张量作为PyTorch中的中心数据结构，被使用，
-// 它的头文件几乎包含在所有地方。
+// Tensor作为PyTorch中的中心数据结构，被很多地方使用，
+// 它的头文件几乎被include在所有地方。
 // 不幸的是，这意味着每次在native_functions.yaml中更新或更改operator的签名，
 // 你(和所有其他PyTorch开发人员)需要重新编译所有ATen及其依赖。
 //
 // TensorBase旨在打破这些头依赖，并为所有PyTorch开发者改进增量构建时间。
 // TensorBase表示TensorImpl的引用计数句柄，和Tensor完全一样。
-// 然而，TensorBase在它的API中没有代码生成方法，因此不依赖于native_functions.yaml。
+// 然而，TensorBase在它的API中没有代码生成的方法，因此不依赖于native_functions.yaml
 //
-// Usage tips
+// 使用技巧
 // ----------
 // - You can `#define TORCH_ASSERT_NO_OPERATORS` at the top of a .cpp
 //   or .cu file to ensure it has no header dependencies on
@@ -76,7 +76,7 @@ inline bool variable_excluded_from_dispatch() {
 //   but this requires a reference-count bump. OptionalTensorRef on
 //   the other hand can materialize a `const Tensor &` without
 //   touching the reference-count.
-//   TensorBase可以通过'张量(tensor_base) '转换为张量，
+//   TensorBase可以通过  'Tensor(tensor_base)'  转换为Tensor，
 //   但这需要一个引用计数的变化。另一方面，OptionalTensorRef可以物化一个“const张量&”，而不需要接触引用计数。
 class TORCH_API TensorBase {
  public:
@@ -146,6 +146,7 @@ class TORCH_API TensorBase {
   c10::MaybeOwned<TensorBase> expect_contiguous(
       MemoryFormat memory_format=MemoryFormat::Contiguous) && = delete;
 
+  // 设置一个标量值
   const TensorBase& fill_(const c10::Scalar& scalar) const;
   const TensorBase& zero_() const;
 
@@ -572,13 +573,18 @@ class TORCH_API TensorBase {
   /// \fn bool is_leaf() const;
   ///
   /// All Tensors that have `requires_grad()` which is ``false`` will be leaf Tensors by convention.
+  /// 所有具有 `requires_grad()`  == false 的张量按照惯例将是叶张量。
   ///
   /// For Tensors that have `requires_grad()` which is ``true``, they will be leaf Tensors if they were
   /// created by the user. This means that they are not the result of an operation and so
   /// `grad_fn()` is `nullptr`.
+  /// 对于具有 'requires_grad()'且为  'true' 的张量，如果它们是由用户创建的，
+  /// 它们将是叶张量。这意味着它们不是操作的结果，所以' grad_fn() '是' nullptr '。
   ///
   /// Only leaf Tensors will have their `grad()` populated during a call to `backward()`.
   /// To get `grad()` populated for non-leaf Tensors, you can use `retain_grad()`.
+  /// 只有叶张量会在调用' backward() '时填充它们的' grad() '。
+  /// 要为非叶张量填充' grad() '，可以使用' retain_grad() '。
   ///
   /// Example:
   /// @code
@@ -609,15 +615,19 @@ class TORCH_API TensorBase {
   /// \fn void backward(const Tensor & gradient={}, c10::optional<bool> retain_graph=c10::nullopt, bool create_graph=false, c10::optional<TensorList> inputs=c10::nullopt) const;
   ///
   /// Computes the gradient of current tensor with respect to graph leaves.
+  /// 计算当前张量相对于图叶的梯度。
   ///
   /// The graph is differentiated using the chain rule. If the tensor is
   /// non-scalar (i.e. its data has more than one element) and requires
   /// gradient, the function additionally requires specifying ``gradient``.
   /// It should be a tensor of matching type and location, that contains
   /// the gradient of the differentiated function w.r.t. this Tensor.
+  /// 用链式法则对图求导。如果张量是非标量(即它的数据有多个元素)并且需要梯度，
+  /// 那么函数需要额外指定' ' gradient ' '。它应该是一个匹配类型和位置的张量，它包含微分函数w.r.t.这个张量的梯度。
   ///
   /// This function accumulates gradients in the leaves - you might need to
   /// zero them before calling it.
+  /// 这个函数在叶子中累积梯度-----在调用它之前，您可能需要将它们归零。
   ///
   /// \param gradient Gradient w.r.t. the
   ///     tensor. If it is a tensor, it will be automatically converted
@@ -646,6 +656,7 @@ class TORCH_API TensorBase {
   ///
   /// Returns a new Tensor, detached from the current graph.
   /// The result will never require gradient.
+  /// 返回一个新的张量，与当前图分离。result将永远不需要梯度。
 
   /// \fn Tensor & detach_() const;
   ///
@@ -674,6 +685,7 @@ class TORCH_API TensorBase {
   // users who should use the API provided in torch/csrc/autograd.h
 
   /// This function returns the forward gradient for this Tensor at the given level.
+  /// 这个函数返回这个张量在给定level上的前向梯度。
   const Tensor& _fw_grad(uint64_t level) const {
     return impl_->_fw_grad(level, *this);
   }
@@ -714,11 +726,13 @@ class TORCH_API TensorBase {
 
   /// Gets the gradient function of the `Variable`. If this is a leaf variable,
   /// the pointer returned will be null.
+  /// 获取变量的梯度函数。如果这是一个叶变量，返回的指针将是空的。
   ///
   /// For View Variables:
   /// Gets the up-to-date grad_fn. If the shared data or base was modified, we
   /// re-create the grad_fn to express the up-to-date view relationship between
   /// this and the base Variable.
+  /// 对于视图变量:获取最新的grad_fn。如果共享数据或base被修改，则重新创建grad_fn来表示this和base之间的最新视图关系。
   const std::shared_ptr<torch::autograd::Node>& grad_fn() const;
 
   // Hooks
@@ -733,6 +747,7 @@ class TORCH_API TensorBase {
   ///
   /// The hook will be called every time a gradient with respect to the Tensor is computed.
   /// The hook should have one of the following signature:
+  /// 每当计算一个关于张量的梯度时，就会调用这个钩子。钩子应该有以下签名之一:
   /// ```
   /// hook(TensorBase grad) -> TensorBase
   /// ```
@@ -769,7 +784,7 @@ protected:
 
 public:
 
-  /// Remove hook at given position
+  /// 移除一个hook
   void remove_hook(unsigned pos) const;
 
   // Variable methods
@@ -813,6 +828,7 @@ protected:
 private:
   TensorBase __dispatch_contiguous(c10::MemoryFormat) const;
 };
+///// TensorBase结束
 
 inline int64_t get_device(const TensorBase& self) {
   return self.get_device();
@@ -839,6 +855,7 @@ namespace detail {
 // Helper creator for Tensor class which doesn't requires the users to pass
 // in an intrusive_ptr instead it just converts the argument passed to
 // requested intrusive_ptr type.
+// Tensor类的辅助函数，它不需要用户传入一个intrusive_ptr，而只是将传入的参数转换为请求的intrusive_ptr类型。
 template <typename T, typename... Args>
 TensorBase make_tensor_base(Args&&... args) {
   return TensorBase(c10::make_intrusive<T>(std::forward<Args>(args)...));

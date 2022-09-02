@@ -2,6 +2,7 @@
 
 // Engine implements backpropagation from output variables and their gradients
 // to "root" variables (variables created by the user with requires_grad=True).
+// 引擎实现了从输出变量及其梯度到“根”变量(由用户使用requires_grad=True创建的变量)的反向传播。
 
 #include <ATen/Tensor.h>
 #include <ATen/ThreadLocalState.h>
@@ -52,11 +53,10 @@ void validate_outputs(
     variable_list& grads,
     const std::function<std::string(const std::string&)>& format_error);
 
-// GraphTask holds metadata needed for a single execution of backward()
+// GraphTask保存一次backward()执行所需的元数据。
 struct GraphTask : std::enable_shared_from_this<GraphTask> {
-  std::atomic<uint64_t> outstanding_tasks_{0};
-  // Indicates if an error occurred while executing any task.  When this is
-  // true, it signals all threads to stop executing.
+  std::atomic<uint64_t> outstanding_tasks_{0};    // 还有多少个task没有执行完成
+  // 指示在执行任何任务时是否发生错误。当它为真时，它通知所有线程停止执行。
   std::atomic_bool has_error_{false};
   std::atomic_bool future_completed_{false};
   // It is safe to read keep_graph_ without synchronization
@@ -65,11 +65,14 @@ struct GraphTask : std::enable_shared_from_this<GraphTask> {
   // To protect reads/writes to not_ready_, dependencies_, captured_vars_,
   // has_error_, future_result_, cpu_ready_queue_, and leaf_streams.
   std::mutex mutex_;
-  std::unordered_map<Node*, InputBuffer> not_ready_;
-  std::unordered_map<Node*, int> dependencies_;
+  std::unordered_map<Node*, InputBuffer> not_ready_;  // Node的Input参数还没有准备执行
+  std::unordered_map<Node*, int> dependencies_; // Node的前序依赖数，当为0时，说明这个Node可以执行了
 
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
   struct ExecInfo {
+    /**
+     * ExecInfo只有在 使用了inputs参数，或者直接调用了autograd.grad()才使用
+     * 这可以过滤掉那些不需要遍历的路径
+     */
     struct Capture {
       Capture(const Capture&) = delete;
       Capture(Capture&&) = default;
@@ -90,6 +93,7 @@ struct GraphTask : std::enable_shared_from_this<GraphTask> {
       // The input grad of a hook will be the output of its preceding hook. The
       // first hook will take the captured grad as the input. The output of the
       // last hook will replace the captured grad.
+      // 按顺序调用
       std::vector<std::unique_ptr<GradCaptureHook>> hooks_;
     };
 
@@ -107,12 +111,18 @@ struct GraphTask : std::enable_shared_from_this<GraphTask> {
   // empty when the graph is executed via .backward() and the inputs parameter
   // is not passed. Otherwise, when executed through .grad(), or when inputs arg
   // is specified for .backward(), exec_info will be non-empty.
+  // Exec info的语义有点复杂。如果它是空的，这意味着任务以“默认”模式运行，这意味着我们遇到的所有next_edges都将被执行。
+  // 如果它不是空的，那么只有具有一个条目并且这个条目已经需要== True的函数才会被执行。
+  // Exec_info仅当图  调用.backward()但没有传递input参数时，是无效的。
+  // 否则，当通过.grad()执行时，或当为.backward()指定input参数时，exec_info将是非空的。
   //
   // exec_info_ is safe to read without synchronization
   std::unordered_map<Node*, ExecInfo> exec_info_;
   // Captures variables are grads captured that we return to the user. After
   // execution of the GraphTask is completed, the captured_vars_ are moved
   // out of the GraphTask and are no longer valid.
+  // 捕获变量是我们返回给用户的梯度。GraphTask执行完成后，captured_vars_被移出GraphTask，不再有效。
+  // 使用 torch.autograd.grad() 才有效， torch.autograd.backward()会将grad存放到.grad字段
   std::vector<Variable> captured_vars_;
 
   // Note: this field is not ready to be used until the proper
@@ -145,7 +155,7 @@ struct GraphTask : std::enable_shared_from_this<GraphTask> {
     return exec_info_.empty();
   }
 
-  // check if the GraphTask is completed or not
+  // 检查GraphTask是否已经完成
   bool completed();
   // mark the graph task as completed and trigger post processing
   void mark_as_completed_and_run_post_processing();
@@ -206,7 +216,7 @@ struct GraphTask : std::enable_shared_from_this<GraphTask> {
   void exec_post_processing();
 };
 
-// The guard that sets and restores current_graph_task.
+// 设置和恢复current_graph_task的守卫。
 class GraphTaskGuard {
  public:
   explicit GraphTaskGuard(std::shared_ptr<GraphTask> graph_task);
@@ -224,9 +234,13 @@ struct NodeTask {
   // This buffer serves as an implicit "addition" node for all of the
   // gradients flowing here.  Once all the dependencies are finished, we
   // use the contents of this buffer to run the function.
+  // 这个缓冲区作为所有在这里流动的梯度的隐式“添加”节点。一旦完成所有依赖关系，我们就使用这个缓冲区的内容来运行函数。
   InputBuffer inputs_;
+  // The inputs_ buffer is also where the output gradients of the previously executed functions are aggregated，
+
   // When worker receives a task with isShutdownTask = true, it will immediately
   // exit. The engine sends a shutdown task to every queue upon its destruction.
+  // 当worker接收到isShutdownTask = true的任务时，它将立即退出。引擎发送一个关闭任务到每一个队列销毁。
   bool isShutdownTask_;
 
   int getReentrantDepth() const;
@@ -276,6 +290,7 @@ struct ReadyQueue {
   };
 
   // To notify threads waiting on the ReadyQueue of available tasks on the heap_
+  // 通知在ReadyQueue上等待heap_上可用任务的线程
   std::condition_variable not_empty_;
   // To protect read and writes to heap_
   mutable std::mutex mutex_;
@@ -298,8 +313,9 @@ struct ReadyQueue {
 // A single instance of this struct should be created through the whole process
 // lifetime. The worker thread creation logic and Engine's destructor rely on
 // this.
+// 应该在整个进程生命周期中创建该结构的单个实例。工作线程的创建逻辑和Engine的析构函数依赖于此。
 struct TORCH_API Engine {
-  /// Returns a reference to a static `Engine` instance.
+  /// 返回一个对静态 'Engine' 实例的引用。
   static Engine& get_default_engine();
 
   static Engine& get_base_engine();
@@ -310,6 +326,7 @@ struct TORCH_API Engine {
 
   // Given a list of (Node, input number) pairs computes the value of the graph
   // by following next_edge references.
+  // 给定一个(Node，输入数)对列表，通过跟随next_edge引用来计算图的值。
   virtual variable_list execute(
       const edge_list& roots,
       const variable_list& inputs,
@@ -360,7 +377,7 @@ struct TORCH_API Engine {
   // Must be called by subclass before destructing to avoid a data-race-on-vptr.
   void stop();
 
-  // Initializes a device thread for the autograd engine.
+  // 为 autograd 引擎初始化一个设备线程
   virtual void thread_init(
       int device,
       const std::shared_ptr<ReadyQueue>& ready_queue,
@@ -391,8 +408,7 @@ struct TORCH_API Engine {
   void reentrant_thread_init();
   void add_thread_pool_task(const std::weak_ptr<GraphTask>& graph_task);
 
-  // Ensures device_ready_queues_ are initialized only once
-  // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes)
+  // 确保 device_ready_queues_ 只初始化一次
   c10::once_flag start_device_threads_flag_;
   // Safe to read device_ready_queues_ without synchronization after
   // initialization
@@ -406,7 +422,7 @@ struct TORCH_API Engine {
   std::mutex post_callbacks_lock_;
 
   // How many nested reentrant calls are allowed until a new thread is used
-  // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes)
+  // 在使用新线程之前，允许多少嵌套的可重入调用
   int max_recursion_depth_;
 
   struct ThreadPoolShared {
@@ -435,7 +451,7 @@ struct TORCH_API Engine {
   std::shared_ptr<ThreadPoolShared> thread_pool_shared_;
 
  private:
-  // Number of non-reentrant threads
+  // Number of non-reentrant threads    不可重入线程数
   std::atomic<uint32_t> non_reentrant_device_thread_count_;
   // Destructor will wait for non-reentrant threads to finish
   std::condition_variable non_reentrant_device_thread_condvar_;

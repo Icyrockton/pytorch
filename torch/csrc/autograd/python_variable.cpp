@@ -342,6 +342,7 @@ static bool check_has_torch_dispatch(PyObject* obj) {
 static PyObject* device_to_py_class_[static_cast<size_t>(
     c10::DeviceType::COMPILE_TIME_MAX_DEVICE_TYPES)];
 
+// 注册不同设备的Pyclass
 void registerPythonTensorClass(
     const std::string& device,
     PyObject* python_tensor_class) {
@@ -1454,7 +1455,7 @@ static struct PyGetSetDef THPVariable_properties[] = {
     {"H", (getter)THPVariable_get_H, nullptr, nullptr, nullptr},
     {"mT", (getter)THPVariable_get_mT, nullptr, nullptr, nullptr},
     {"mH", (getter)THPVariable_get_mH, nullptr, nullptr, nullptr},
-    {"_cdata", (getter)THPVariable_get_cdata, nullptr, nullptr, nullptr},
+      {"_cdata", (getter)THPVariable_get_cdata, nullptr, nullptr, nullptr},
     {"_version", (getter)THPVariable_get_version, nullptr, nullptr, nullptr},
     {"grad_fn", (getter)THPVariable_get_grad_fn, nullptr, nullptr, nullptr},
     {"_grad_fn",
@@ -2062,6 +2063,8 @@ void initTensorImplConversion(PyObject* module) {
 } // namespace autograd
 } // namespace torch
 
+// 这里是 module 初始化 THPVariable 的代码
+// THPVariable 就相当于 _TensorBase
 bool THPVariable_initModule(PyObject* module) {
   THPVariableMetaType.tp_base = &PyType_Type;
   if (PyType_Ready(&THPVariableMetaType) < 0)
@@ -2076,8 +2079,8 @@ bool THPVariable_initModule(PyObject* module) {
   if (PyType_Ready(&THPVariableType) < 0)
     return false;
   Py_INCREF(&THPVariableType);
-  PyModule_AddObject(module, "_TensorBase", (PyObject*)&THPVariableType);
-  torch::autograd::initTorchFunctions(module);
+  PyModule_AddObject(module, "_TensorBase", (PyObject*)&THPVariableType); // 注册了 _TensorBase
+  torch::autograd::initTorchFunctions(module);                            // 绑定各种ops,  比如 torch.sum() torch.mm()
   torch::autograd::initTensorImplConversion(module);
   return true;
 }

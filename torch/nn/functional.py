@@ -4773,7 +4773,7 @@ def _in_projection(
     w_q: Tensor,
     w_k: Tensor,
     w_v: Tensor,
-    b_q: Optional[Tensor] = None,
+    b_q: Optional[Tensor] = None,   # 这里是 bias
     b_k: Optional[Tensor] = None,
     b_v: Optional[Tensor] = None,
 ) -> Tuple[Tensor, Tensor, Tensor]:
@@ -4782,6 +4782,8 @@ def _in_projection(
     a triple of linear projections, with shape constraints on the weights which
     ensure embedding dimension uniformity in the projected outputs.
     Output is a triple containing projection tensors for query, key and value.
+    执行注意操作的投影内步骤。这是一个简单的三重线性投影，
+    在权重上有形状约束，以确保投影输出中嵌入尺寸的一致性。输出是一个包含query, key , value张量的三元组。
 
     Args:
         q, k, v: query, key and value tensors to be projected.
@@ -4854,6 +4856,7 @@ def _scaled_dot_product_attention(
     B, Nt, E = q.shape
     q = q / math.sqrt(E)
     # (B, Nt, E) x (B, E, Ns) -> (B, Nt, Ns)
+    # 计算注意力分数
     if attn_mask is not None:
         attn = torch.baddbmm(attn_mask, q, k.transpose(-2, -1))
     else:
@@ -4926,7 +4929,7 @@ def multi_head_attention_forward(
     bias_v: Optional[Tensor],
     add_zero_attn: bool,
     dropout_p: float,
-    out_proj_weight: Tensor,
+    out_proj_weight: Tensor,        # 最后计算完毕后，进行线性变换的weight
     out_proj_bias: Optional[Tensor],
     training: bool = True,
     key_padding_mask: Optional[Tensor] = None,
@@ -5078,6 +5081,7 @@ def multi_head_attention_forward(
             b_q = b_k = b_v = None
         else:
             b_q, b_k, b_v = in_proj_bias.chunk(3)
+        # 计算得到 q,k,v
         q, k, v = _in_projection(query, key, value, q_proj_weight, k_proj_weight, v_proj_weight, b_q, b_k, b_v)
 
     # prep attention mask
@@ -5175,13 +5179,15 @@ def multi_head_attention_forward(
         new_attn_mask.masked_fill_(attn_mask, float("-inf"))
         attn_mask = new_attn_mask
 
-    # adjust dropout probability
+    # 调整 dropout 概率
     if not training:
         dropout_p = 0.0
 
     #
     # (deep breath) calculate attention and out projection
     #
+
+    # 输出值 和 attention的分数值
     attn_output, attn_output_weights = _scaled_dot_product_attention(q, k, v, attn_mask, dropout_p)
     attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len * bsz, embed_dim)
     attn_output = linear(attn_output, out_proj_weight, out_proj_bias)

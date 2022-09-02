@@ -24,6 +24,7 @@ C10_API at::Allocator* allocator_array[at::COMPILE_TIME_MAX_DEVICE_TYPES];
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables,modernize-avoid-c-arrays,cppcoreguidelines-avoid-c-arrays)
 C10_API uint8_t allocator_priority[at::COMPILE_TIME_MAX_DEVICE_TYPES] = {0};
 
+// 设置设备的Allocator
 void SetAllocator(at::DeviceType t, at::Allocator* alloc, uint8_t priority) {
   if (priority >= allocator_priority[static_cast<int>(t)]) {
     allocator_array[static_cast<int>(t)] = alloc;
@@ -31,6 +32,7 @@ void SetAllocator(at::DeviceType t, at::Allocator* alloc, uint8_t priority) {
   }
 }
 
+// 获得某个设备的Allocator
 at::Allocator* GetAllocator(const at::DeviceType& t) {
   auto* alloc = allocator_array[static_cast<int>(t)];
   TORCH_INTERNAL_ASSERT_DEBUG_ONLY(alloc, "Allocator for ", t, " is not set.");

@@ -16,12 +16,12 @@ namespace impl {
 // Take a DispatchKeySet for a Tensor and determine what the actual dispatch
 // DispatchKey should be, taking into account TLS, and skipping backends which
 // fall through.
-// 为一个张量取一个DispatchKeySet，并确定实际的分派DispatchKey应该是什么，考虑TLS，跳过失败的后端。
+// 为一个张量取一个DispatchKeySet，并确定实际的DispatchKey应该是什么，考虑TLS，跳过失败的后端。
 //
 // Unlike Tensor::key_set(), the value of this on a tensor can change depending
 // on TLS.
 //
-// NB: If there is no valid dispatch key, this will return Undefined
+// 注意:如果没有有效的分派键，将返回Undefined
 static inline DispatchKeySet computeDispatchKeySet(
     DispatchKeySet ks,
     // The key mask lets us eliminate (by zero entries) keys which should not
@@ -53,6 +53,7 @@ static inline DispatchKeySet computeDispatchKeySet(
 namespace detail {
   // A small gadget to extract the DispatchKeySet from types which are known
   // to have it.  Used to extract dispatch keys from unboxed calls.
+  // 一个小工具，用于从已知的类型中提取DispatchKeySet。用于从未装箱呼叫中提取分派键。
   struct MultiDispatchKeySet : at::IterArgs<MultiDispatchKeySet> {
     DispatchKeySet ts;
     void operator()(const at::Tensor& x) {
@@ -122,6 +123,7 @@ namespace detail {
  */
 struct TORCH_API DispatchKeyExtractor final {
 public:
+ // 根据FunctionSchema创建DispatchKeyExtractor
   static DispatchKeyExtractor make(const FunctionSchema& schema) {
     return DispatchKeyExtractor(makeBitsetForDispatchArgs(schema));
   }
@@ -148,7 +150,7 @@ public:
       if (C10_LIKELY(ivalue.isTensor())) {
         // NB: Take care not to introduce a refcount bump (there's
         // no safe toTensorRef method, alas)
-        ks = ks | ivalue.unsafeToTensorImpl()->key_set();
+        ks = ks | ivalue.unsafeToTensorImpl()->key_set(); // 如果是Tensor，获得其DispatchKeySet
       } else if (C10_UNLIKELY(ivalue.isTensorList())) {
         for (const at::Tensor tensor : ivalue.toTensorList()) {
           ks = ks | tensor.key_set();
@@ -164,6 +166,7 @@ public:
       }
     });
     // Keys that are fallthrough should be skipped
+    // 应该跳过失效键
     if (requiresBitsetPerBackend_) {
       auto backend_idx = ks.getBackendIndex();
       return impl::computeDispatchKeySet(ks, nonFallthroughKeysPerBackend_[backend_idx]);
@@ -229,6 +232,7 @@ private:
   c10::utils::bitset dispatch_arg_indices_reverse_;
 
   // Set of functionality keys for which the operator does NOT have fallthrough kernel.
+  // 没有 fallthrough kernel的一组分派键
   DispatchKeySet nonFallthroughKeys_;
   // Set of functionality keys for which the operator does NOT have fallthrough kernel, defined PER BACKEND.
   // This is only needed if we know that the operator has a different set of fallthroughs defined for some backends.

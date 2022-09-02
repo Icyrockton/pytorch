@@ -241,12 +241,9 @@ def _forward_unimplemented(self, *input: Any) -> None:
 
 
 class Module:
-    r"""Base class for all neural network modules.
+    r"""所有神经网络模块的基类。
 
-    Your models should also subclass this class.
-
-    Modules can also contain other Modules, allowing to nest them in
-    a tree structure. You can assign the submodules as regular attributes::
+    Y你的模型也应该子类化这个类。模块还可以包含其他模块，允许将它们嵌套在树结构中。你可以将子模块赋值为常规属性::
 
         import torch.nn as nn
         import torch.nn.functional as F
@@ -263,6 +260,7 @@ class Module:
 
     Submodules assigned in this way will be registered, and will have their
     parameters converted too when you call :meth:`to`, etc.
+    以这种方式分配的子模块将被注册，并且当你调用: 'to' 时，它们的参数也会被转换，等等。
 
     .. note::
         As per the example above, an ``__init__()`` call to the parent class
@@ -303,6 +301,7 @@ class Module:
     def __init__(self) -> None:
         """
         Initializes internal Module state, shared by both nn.Module and ScriptModule.
+        初始化内部模块状态，由两个nn共享。nn.Module和ScriptModule
         """
         torch._C._log_api_usage_once("python.nn_module")
 
@@ -328,7 +327,7 @@ class Module:
     forward: Callable[..., Any] = _forward_unimplemented
 
     def register_buffer(self, name: str, tensor: Optional[Tensor], persistent: bool = True) -> None:
-        r"""Adds a buffer to the module.
+        r"""向模块添加buffer。
 
         This is typically used to register a buffer that should not to be
         considered a model parameter. For example, BatchNorm's ``running_mean``
@@ -376,6 +375,7 @@ class Module:
                             .format(torch.typename(tensor), name))
         else:
             self._buffers[name] = tensor
+            # 非持久的buffer，不保存在state_dict
             if persistent:
                 self._non_persistent_buffers_set.discard(name)
             else:
@@ -424,9 +424,10 @@ class Module:
             self._parameters[name] = param
 
     def add_module(self, name: str, module: Optional['Module']) -> None:
-        r"""Adds a child module to the current module.
+        r"""Adds a child module to the current module. 向当前模块添加一个子模块。
 
         The module can be accessed as an attribute using the given name.
+        可以使用给定的名称作为属性访问模块。
 
         Args:
             name (string): name of the child module. The child module can be
@@ -455,6 +456,7 @@ class Module:
         """
         Returns the submodule given by ``target`` if it exists,
         otherwise throws an error.
+        如果存在，则返回 'target' 的子模块，否则抛出错误。
 
         For example, let's say you have an ``nn.Module`` ``A`` that
         looks like this:
@@ -686,6 +688,8 @@ class Module:
         r"""Applies ``fn`` recursively to every submodule (as returned by ``.children()``)
         as well as self. Typical use includes initializing the parameters of a model
         (see also :ref:`nn-init-doc`).
+        递归地将 'fn' 应用于每个子模块(由'.children()'返回)以及self。
+        典型的用法包括初始化模型的参数(参见:`nn-init-doc`)。
 
         Args:
             fn (:class:`Module` -> None): function to be applied to each submodule
@@ -727,6 +731,7 @@ class Module:
 
     def cuda(self: T, device: Optional[Union[int, device]] = None) -> T:
         r"""Moves all model parameters and buffers to the GPU.
+            移动所有模型参数和缓冲区到GPU。
 
         This also makes associated parameters and buffers different objects. So
         it should be called before constructing optimizer if the module will
@@ -1181,6 +1186,7 @@ class Module:
         forward_call = (self._slow_forward if torch._C._get_tracing_state() else self.forward)
         # If we don't have any hooks, we want to skip the rest of the logic in
         # this function, and just call forward.
+        # 如果我们没有任何Hook，我们希望跳过该函数中其余的逻辑，只调用forward。
         if not (self._backward_hooks or self._forward_hooks or self._forward_pre_hooks or _global_backward_hooks
                 or _global_forward_hooks or _global_forward_pre_hooks):
             return forward_call(*input, **kwargs)
@@ -1368,11 +1374,12 @@ class Module:
     # TODO: Change `*args` to `*` and remove the copprespinding warning in docs when BC allows.
     # Also remove the logic for arg parsing together.
     def state_dict(self, *args, destination=None, prefix='', keep_vars=False):
-        r"""Returns a dictionary containing a whole state of the module.
+        r"""返回一个包含模块整个状态的字典。
 
         Both parameters and persistent buffers (e.g. running averages) are
         included. Keys are corresponding parameter and buffer names.
         Parameters and buffers set to ``None`` are not included.
+        参数和持久缓冲区(例如运行平均值)都包括在内。键是对应的参数和缓冲区名称。不包括设置为“None”的参数和缓冲区。
 
         .. warning::
             Currently ``state_dict()`` also accepts positional arguments for
@@ -1780,6 +1787,7 @@ class Module:
     def named_children(self) -> Iterator[Tuple[str, 'Module']]:
         r"""Returns an iterator over immediate children modules, yielding both
         the name of the module as well as the module itself.
+        返回直接子模块上的迭代器，生成模块名称和模块本身
 
         Yields:
             (string, Module): Tuple containing a name and child module
@@ -1876,6 +1884,7 @@ class Module:
         particular modules for details of their behaviors in training/evaluation
         mode, if they are affected, e.g. :class:`Dropout`, :class:`BatchNorm`,
         etc.
+        这只对某些模块有影响。如受影响，具体模块在培训评估模式下的行为详见:class: 'Dropout'，'BatchNorm' 等。
 
         Args:
             mode (bool): whether to set training mode (``True``) or evaluation
@@ -1912,6 +1921,7 @@ class Module:
     def requires_grad_(self: T, requires_grad: bool = True) -> T:
         r"""Change if autograd should record operations on parameters in this
         module.
+        如果autograd应该记录此模块中对参数的操作，则更改。
 
         This method sets the parameters' :attr:`requires_grad` attributes
         in-place.

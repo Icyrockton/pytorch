@@ -130,6 +130,7 @@ void autogradNotImplementedFallbackImpl(
       stack_start,
       num_arguments);
 
+  // 这里设置了 NotImplemented 节点
   std::shared_ptr<NotImplemented> grad_fn;
   if (any_requires_grad) {
     grad_fn = std::shared_ptr<NotImplemented>(
@@ -157,6 +158,7 @@ void autogradNotImplementedFallbackImpl(
       0,
       num_arguments);
 #endif
+  // 进行 redispatch
   if (aliased_input_idx != -1 || any_is_inplace_output) {
     at::AutoDispatchBelowAutograd guard;
     op.redispatchBoxed(dispatch_keys & c10::after_autograd_keyset, stack);

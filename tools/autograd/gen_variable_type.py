@@ -709,6 +709,7 @@ def gen_variable_type(
     compute the output. The grad_fn is attached to differentiable functions.
     """
     fm = FileManager(install_dir=out, template_dir=template_path, dry_run=False)
+    # 写入注释信息
     fm.write(
         "VariableType.h",
         lambda: {

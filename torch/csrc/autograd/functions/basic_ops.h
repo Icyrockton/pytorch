@@ -26,6 +26,7 @@ struct TORCH_API Error : public Node {
 // We print grad_fn names in tensor printing. For functions with backward
 // NYI, grad_fn=<Error> will be printed if we use Error, which is confusing. So
 // special case with a new NotImplemented function here.
+// 未实现的节点
 struct TORCH_API NotImplemented : public Error {
   NotImplemented(const std::string& forward_fn, edge_list&& next_edges)
       : Error(

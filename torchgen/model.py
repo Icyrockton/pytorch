@@ -33,6 +33,7 @@ from torchgen.utils import assert_never, NamespaceHelper
 #   construction.
 
 # Represent a source location; used for better error reporting
+# 表示源位置; 用于更好的错误报告
 @dataclass(frozen=True)
 class Location:
     file: str
@@ -377,6 +378,9 @@ class NativeFunction:
     loc: "Location"
 
     # A list of operators that are expected to be auto-generated for this NativeFunction.
+    # 期望为这个NativeFunction自动生成的op列表。注意:代码生成器实际上并不直接使用这个列表来生成任何东西。
+    # 相反，代码生成完全根据函数模式确定要生成哪些操作符，并使用autogen声明进行错误检查。
+    # 我们期望每个自动生成的NativeFunction都在native_functions.yaml中显式调用
     # Note: This list isn't actually directly used by the codegen to generate anything.
     # Instead, the codegen figures out what operators to generate purely based off of
     # function schema, and uses the autogen declarations to error check.
@@ -451,7 +455,7 @@ class NativeFunction:
     @staticmethod
     def from_yaml(
         ei: Dict[str, object],
-        loc: "Location",
+        loc: "Location",    # 在源文件的所在line的信息
         valid_tags: Set[str],
         ignore_keys: Optional[Set[DispatchKey]] = None,
     ) -> Tuple[
@@ -462,14 +466,14 @@ class NativeFunction:
         """
         e = ei.copy()
 
-        funcs = e.pop("func")
+        funcs = e.pop("func")   # 得到func信息
         assert isinstance(funcs, str), f"not a str: {funcs}"
         # only support one level of namespace. E.g., aten::add
         namespace_helper = NamespaceHelper.from_namespaced_entity(
             namespaced_entity=funcs, max_level=1
         )
-        namespace = namespace_helper.get_cpp_namespace(default="aten")
-        func = FunctionSchema.parse(namespace_helper.entity_name)   # <----------- 解析FunctionSchema
+        namespace = namespace_helper.get_cpp_namespace(default="aten")  # 默认的namespace是aten
+        func = FunctionSchema.parse(namespace_helper.entity_name)   # <----------- 1.解析FunctionSchema
 
         cpp_no_default_args_list = e.pop("cpp_no_default_args", [])
         assert isinstance(cpp_no_default_args_list, list)
@@ -480,7 +484,7 @@ class NativeFunction:
         )
         assert isinstance(use_const_ref_for_mutable_tensors, bool)
 
-        variants_s = e.pop("variants", "function")
+        variants_s = e.pop("variants", "function")  # 解析 variants
         assert isinstance(variants_s, str)
         variants: Set[Variant] = set()
         for v in variants_s.split(", "):
@@ -512,7 +516,7 @@ class NativeFunction:
         else:
             device_check = DeviceCheckType[device_check_s]
 
-        structured = e.pop("structured", False)
+        structured = e.pop("structured", False)     # 结构化内核
         assert isinstance(structured, bool), f"not a bool: {structured}"
 
         structured_delegate_s = e.pop("structured_delegate", None)
@@ -527,6 +531,7 @@ class NativeFunction:
         if structured_delegate_s is not None:
             structured_delegate = OperatorName.parse(structured_delegate_s)
 
+        # structured_inherits 一般都是继承于 TensorIteratorBase
         structured_inherits = e.pop("structured_inherits", None)
         assert structured_inherits is None or isinstance(
             structured_inherits, str
@@ -568,7 +573,7 @@ class NativeFunction:
 
         from torchgen.api import cpp
 
-        raw_dispatch = e.pop("dispatch", None)  # 解析dispatch
+        raw_dispatch = e.pop("dispatch", None)  # 解析dispatch，解析dispatch，解析dispatch
         assert raw_dispatch is None or isinstance(raw_dispatch, dict), e
         dispatch: Dict[DispatchKey, BackendMetadata] = {}
         if raw_dispatch is not None:
@@ -577,7 +582,7 @@ class NativeFunction:
                 "manual registration, dispatch has no effect!"
             )
             redundant_composite_implicit_autograd = False
-            for ks, v in raw_dispatch.items():
+            for ks, v in raw_dispatch.items():      #   遍历 dispatch字典
                 if ks == "__line__":
                     continue  # not worth tracking line numbers for dispatch entries
                 assert isinstance(ks, str), e
@@ -600,7 +605,7 @@ class NativeFunction:
                     # of which in-tree ops are structured
                     dispatch[dispatch_key] = BackendMetadata(
                         kernel=namespace_helper.entity_name,
-                        structured=structured
+                        structured=structured       # 结构化内核
                         and is_structured_dispatch_key(dispatch_key),
                         cpp_namespace=(kernel_namespace + "::native"),
                     )
@@ -1014,9 +1019,12 @@ class UfuncInnerLoop:
 
 
 # BackendIndex represents a backend.
+# BackendIndex表示后端
 # The BackendIndex encodes per-operator information that is potentially different
 # for each backend. The most obvious example is the name of the kernel
 # (the 'dispatch' entry in native_functions.yaml).
+# BackendIndex对每个后端可能不同的op信息进行编码。
+# 最明显的例子是内核的名称(native_functions.yaml中的'dispatch'条目)。
 # However, there can be other examples of different backends having different information.
 # External backends can choose to opt their kernels to be structured independently from in-tree backends,
 # which means that this information isn't inherentely tied to a NativeFunction- it's different per backend.
@@ -1025,6 +1033,8 @@ class BackendIndex:
     dispatch_key: DispatchKey
     # Mainly important for structured kernels, this determines which variant in the operator group is used to implement the others.
     # All in-tree ops use out kernels, while XLA uses functional kernels.
+    # 这对于结构化内核来说非常重要，它决定了使用op组中的哪个变体来实现其他变体。
+    # 所有树内操作都使用 out内核，而XLA使用 functional内核。
     use_out_as_primary: bool
     # Whether the backend requires a device guard, and device checks.
     # For in-tree backends, this is currently just CUDA/HIP
@@ -1160,12 +1170,12 @@ class FunctionSchema:
     @staticmethod
     def parse(func: str) -> "FunctionSchema":        # 解析FunctionSchema
         # We should probably get a proper parser here
-        decls = FunctionSchema.decl_re.findall(func)
+        decls = FunctionSchema.decl_re.findall(func)    # 用正则进行解析
         assert len(decls) == 1, f"Invalid function schema: {func}"
         ops, args, return_decl = decls[0]
-        name = OperatorName.parse(ops)
-        arguments = Arguments.parse(args)
-        returns = parse_returns(return_decl)
+        name = OperatorName.parse(ops)  # 解析函数名称
+        arguments = Arguments.parse(args)   # 解析参数
+        returns = parse_returns(return_decl)    # 解析返回值
         r = FunctionSchema(name=name, arguments=arguments, returns=returns)
         assert str(r) == func, f"{str(r)} != {func}"
         return r
@@ -1737,6 +1747,7 @@ class Argument:
         match = re.match(r"Tensor\((.+)\)(.*)", type_and_annot)
         annotation: Optional[Annotation]
         if match:
+            # 如果有annotation ， 例如  Tensor(a!) self
             # If you update this, make sure the __str__ still works too
             assert match.group(2) in [
                 "",
@@ -1744,7 +1755,7 @@ class Argument:
                 "[]",
             ], "unrecognized alias analysis form with Tensor"
             type_s = "Tensor" + match.group(2)
-            annotation = Annotation.parse(match.group(1))
+            annotation = Annotation.parse(match.group(1))   #  比如说 Tensor(a!) self ， 解析出 a!   !代表可写可读
         else:
             type_s = type_and_annot
             annotation = None
@@ -2007,8 +2018,8 @@ class Arguments:
 
     @staticmethod
     def _preparse(args: str) -> Tuple[List[Argument], List[Argument], List[Argument]]:
-        positional: List[Argument] = []
-        kwarg_only: List[Argument] = []
+        positional: List[Argument] = [] # 记录positional参数
+        kwarg_only: List[Argument] = [] # 记录key arg的参数
         out: List[Argument] = []
         arguments_acc = positional
 
@@ -2178,7 +2189,7 @@ AUGMENTED_ASSIGNMENT_NAMES = [
 @dataclass(frozen=True)
 class BaseOperatorName:
     base: str
-    inplace: bool
+    inplace: bool   # 如果最后一个字符是`_` 是就地操作 例如add_
     dunder_method: bool
     # Note [Overload Ambiguity With Functional Variants]
     # A handful of operators have both a "mutable" and a "functional" variant.

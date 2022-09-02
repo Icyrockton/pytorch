@@ -14,11 +14,11 @@
 namespace c10 {
 namespace impl {
 
-// Packed container for TensorImpl sizes and strides.
-// This design improves on the previous approach of using a pair of
+// Packed container for TensorImpl sizes and strides. TensorImpl大小和步长的包装容器。
+// This design improves on the previous approach of using a pair of 这种设计改进了之前使用一对c10::SmallVector<int64_t, 5>的方法
 // c10::SmallVector<int64_t, 5> by specializing for the operations we
 // actually use and enforcing that the number of sizes is the same as
-// the number of strides. The memory layout is as follows:
+// the number of strides. The memory layout is as follows: // 专门用于实际使用的操作，并强制大小数与步长数相同。内存布局如下:
 //
 // 1 size_t for the size
 // 5 eightbytes of inline sizes and 5 eightbytes of inline strides, OR pointer
@@ -42,7 +42,7 @@ class C10_API SizesAndStrides {
       free(outOfLineStorage_);
     }
   }
-
+  // 复制构造函数
   SizesAndStrides(const SizesAndStrides& rhs) : size_(rhs.size_) {
     if (C10_LIKELY(rhs.isInline())) {
       copyDataInline(rhs);
@@ -73,7 +73,7 @@ class C10_API SizesAndStrides {
     return *this;
   }
 
-  // Move from rhs. rhs.size() == 0 afterwards.
+  // 移动构造函数
   SizesAndStrides(SizesAndStrides&& rhs) noexcept : size_(rhs.size_) {
     if (C10_LIKELY(isInline())) {
       memcpy(inlineStorage_, rhs.inlineStorage_, sizeof(inlineStorage_));
@@ -242,7 +242,7 @@ class C10_API SizesAndStrides {
     return sizes_data()[idx];
   }
 
-  // Size accessors.
+  // 下面是访问size和stride的方法
   SymInt stride_at(size_t idx) const noexcept {
     assert(idx < size());
     return strides_data()[idx];
@@ -286,7 +286,7 @@ class C10_API SizesAndStrides {
   void resizeSlowPath(size_t newSize, size_t oldSize);
 
  private:
-  bool isInline() const noexcept {
+  bool isInline() const noexcept {  // 大小 小于5 称为inline size
     return size_ <= C10_SIZES_AND_STRIDES_MAX_INLINE_SIZE;
   }
 
@@ -321,8 +321,8 @@ class C10_API SizesAndStrides {
 
   size_t size_;
   union {
-    SymInt* outOfLineStorage_;
-    SymInt inlineStorage_[C10_SIZES_AND_STRIDES_MAX_INLINE_SIZE * 2]{};
+    SymInt* outOfLineStorage_;  // 超出inline size了，需要在堆上动态分配
+    SymInt inlineStorage_[C10_SIZES_AND_STRIDES_MAX_INLINE_SIZE * 2]{}; // 最大的inline size
   };
 };
 

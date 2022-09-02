@@ -29,6 +29,7 @@ using MetadataShape = c10::variant<at::DimVector, at::Tensor>;
  * Records TensorOptions, shape of the tensor, whether or not the Python
  * dispatch key is set (tensor subclass), and, where applicable, the stream the
  * corresponding operation took place on.
+ * 记录TensorOptions,tensor的shape,是否Python相关的dispatch key设置
  *
  * If is_valid() is false, then the corresponding input is not used and may be
  * an undefined tensor.

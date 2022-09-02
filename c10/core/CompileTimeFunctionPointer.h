@@ -10,6 +10,8 @@ namespace c10 {
  * in a template and calling it from inside the template
  * allows the compiler to inline the call because it
  * knows the function pointer at compile time.
+ * 将函数指针表示为c++类型。这允许在模板中使用函数指针作为类型，
+ * 并在模板内部调用它，从而允许编译器内联调用，因为编译时它知道函数指针。
  *
  * Example 1:
  *  int add(int a, int b) {return a + b;}

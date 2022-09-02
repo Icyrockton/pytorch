@@ -76,8 +76,9 @@ def pre_group_native_functions(
     # 例子:pre_grouped_native_functions
     # {
     #     binop(Tensor self, Tensor other) -> Tensor : {
-    #                                                          SchemaKind.out :   对应的NativeFunction
+    #                                                          SchemaKind.out        :  对应的NativeFunction
     #                                                          SchemaKind.functional :  对应的NativeFunction
+    #                                                          SchemaKind.inplace    :  对应的NativeFunction
     # }
     #
     return pre_grouped_native_functions

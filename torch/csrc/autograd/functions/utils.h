@@ -37,6 +37,7 @@ TORCH_API void check_input_variables(
     int required_args = -1,
     bool allow_undefined = false);
 
+// 只要Tensor有一个是需要 require_grad 就返回True
 struct ComputeRequiresGrad : IterArgs<ComputeRequiresGrad> {
   bool out = false;
   using IterArgs<ComputeRequiresGrad>::operator();
@@ -64,6 +65,9 @@ inline bool compute_requires_grad(Args&&... args) {
   return ComputeRequiresGrad().apply(std::forward<Args>(args)...).out;
 }
 
+/**
+ * set_history 设置Tensor上的AutoGradMeta信息
+ */
 inline void set_history(
     at::Tensor& variable,
     const std::shared_ptr<Node>& grad_fn) {
@@ -73,7 +77,7 @@ inline void set_history(
     // added function to the DONT_REQUIRE_DERIVATIVE list in
     // tools/autograd/gen_variable_type.py
     TORCH_INTERNAL_ASSERT(isDifferentiableType(variable.scalar_type()));
-    auto output_nr = grad_fn->add_input_metadata(variable);
+    auto output_nr = grad_fn->add_input_metadata(variable); // variable是正向的output结果，在backward中又变成了input
     impl::set_gradient_edge(variable, {grad_fn, output_nr});
   } else {
     grad_fn->add_input_metadata(Node::undefined_input());

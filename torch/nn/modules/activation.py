@@ -946,10 +946,10 @@ class MultiheadAttention(Module):
                  kdim=None, vdim=None, batch_first=False, device=None, dtype=None) -> None:
         factory_kwargs = {'device': device, 'dtype': dtype}
         super(MultiheadAttention, self).__init__()
-        self.embed_dim = embed_dim
+        self.embed_dim = embed_dim  # input的feature数量
         self.kdim = kdim if kdim is not None else embed_dim
         self.vdim = vdim if vdim is not None else embed_dim
-        self._qkv_same_embed_dim = self.kdim == embed_dim and self.vdim == embed_dim
+        self._qkv_same_embed_dim = self.kdim == embed_dim and self.vdim == embed_dim    # q,k,v相同的维度
 
         self.num_heads = num_heads
         self.dropout = dropout
@@ -1093,6 +1093,7 @@ class MultiheadAttention(Module):
             why_not_fast_path = "key_padding_mask and attn_mask were both supplied"
 
         if not why_not_fast_path:
+            # 快速路径
             tensor_args = (
                 query,
                 key,

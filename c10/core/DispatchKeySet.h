@@ -44,7 +44,7 @@ C10_ALWAYS_INLINE static const std::
 // specific piece of functionality.
 // Dispatcher通过抓取每个输入张量上的keyset(或将它们放在一起)并分派到特定的功能块来实现多重分派。
 //
-// functionality位是有序的。当设置多个functionality位时，我们使用优先级最高的功能。
+// functionality位是有序的。当设置多个functionality位时，我们使用优先级最高的。
 //
 // Similarly, multiple backend bits can theoretically be set if
 // you call an operator with multiple tensors from difference devices (e.g. CPU
@@ -188,8 +188,7 @@ class DispatchKeySet final {
                  1)) -
             1) {}
 
-  // Public version of DispatchKeySet(uint64_t) API; external users
-  // must be explicit when they do this!
+  // DispatchKeySet(uint64_t) API的公共版本;外部用户在执行此操作时必须明确!
   constexpr DispatchKeySet(Raw, uint64_t x) : repr_(x) {}
 
   /* 使用BackendComponent 创建DispatchKeySet  （低12位） */
@@ -490,7 +489,7 @@ class DispatchKeySet final {
     // E.g. 000001 (CPU) should give us an offset of 0, 000010 (CUDA) should
     // give us an offset of 1, etc.
     auto backend_idx =
-        DispatchKeySet((repr_ & offset_and_mask.mask) >> 1).indexOfHighestBit();
+        DispatchKeySet((repr_ & offset_and_mask.mask) >> 1).indexOfHighestBit();  // 得到backend bit... CPU or CUDA or xxx
     return offset_and_mask.offset + backend_idx;
   }
 #endif
@@ -515,7 +514,10 @@ class DispatchKeySet final {
   // STL iterator for DispatchKeySet. Iterates through all runtime DispatchKeys
   // in the set. The iterator is only invalidated by the destruction of the
   // underlying DispatchKeySet as the iterator stores a pointer to the raw
-  // representation of the DispatchKeySet. Note: When we encounter a per-backend
+  // representation of the DispatchKeySet.
+  // DispatchKeySet的STL迭代器。遍历集合中的所有运行时DispatchKeys。
+  // 只有销毁底层的DispatchKeySet时，迭代器才会失效，因为迭代器存储了一个指向DispatchKeySet原始表示的指针。
+  // Note: When we encounter a per-backend
   // functionality (e.g. Dense or Sparse), we will iterate through EVERY backend
   // in the keyset, for that functionality. For example, if the next
   // functionality key to iterate over is Autograd, and the backend bits in the
@@ -643,6 +645,7 @@ C10_API inline int getDispatchTableIndexForDispatchKey(DispatchKey k) {
 // Note [autograd_dispatch_keyset Does Not Include Backend Bits]
 // We don't want to include any backend bits (BackendComponent::CPUBit, etc)
 // directly in autograd_dispatch_keyset.
+// 我们不想在autograd_dispatch_keyset中直接包含任何后端位(BackendComponent::CPUBit等)。
 // Why? keysets like autograd_dispatch_keyset are commonly used to remove
 // autograd keys from a DispatchKeySet throughout the code base. However, you
 // are only allowed to remove functionality bits from a keyset, not backend
@@ -689,6 +692,7 @@ constexpr DispatchKeySet sparse_csr_ks =
 constexpr DispatchKeySet mkldnn_ks = DispatchKeySet(DispatchKey::MkldnnCPU);
 
 // backend dispatch keys that map to DispatchKey::AutogradOther
+// 后端分派键映射到DispatchKey::AutogradOther
 // NB: keys in this set also get associated with CompositeImplicitAutograd
 constexpr DispatchKeySet autogradother_backends =
     DispatchKeySet(

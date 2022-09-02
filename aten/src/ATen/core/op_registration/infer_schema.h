@@ -14,11 +14,9 @@ namespace detail {
 
 namespace infer_schema {
 
-/// The templated inference code creates `ArgumentDef` instead of `Argument`,
-/// because that can be constructed at compile time and has a much smaller
-/// binary size than having calls to `Argument` constructors in the template.
-/// Creating `Argument` objects from `ArgumentDef` can then be done at
-/// runtime in a non-templated way.
+/// 模板化推理代码创建的是 'ArgumentDef' 而不是 'Argument' ，因为它可以在编译时被构造，
+/// 并且比在模板中调用 'Argument' 构造函数有更小的二进制大小。
+/// 然后可以在运行时以非模板方式从 'ArgumentDef' 创建 'Argument' 对象。
 struct ArgumentDef final {
   using GetTypeFn = TypePtr();
   GetTypeFn* getTypeFn;
