@@ -17,6 +17,7 @@ namespace c10 {
 //
 // nullptr DataPtrs can still have a nontrivial device; this allows
 // us to treat zero-size allocations uniformly with non-zero allocations.
+// nullptr DataPtrs仍然可以有一个重要的设备;这允许我们将零大小的分配与非零大小的分配统一对待。
 //
 class C10_API DataPtr {
  private:

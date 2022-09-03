@@ -163,7 +163,7 @@ TensorImpl::TensorImpl(
 
   // TODO: be more explicit about the full key set at call sites so we
   // don't have to keep recomputing it here
-  auto k = key_set.highestBackendKey();
+  auto k = key_set.highestBackendKey(); // 获得对应的backend
 
   key_set = key_set | getAutocastRelatedKeySetFromBackend(k);
 
@@ -180,7 +180,8 @@ TensorImpl::TensorImpl(
     // TODO: Ideally we only add AutogradBackend key when the tensor requires
     // grad.
     //       See Note [Dream: skip VariableType kernel when requires_grad=false]
-    key_set_ = key_set | getAutogradRelatedKeySetFromBackend(k);
+    key_set_ = key_set | getAutogradRelatedKeySetFromBackend(k); // 设置 autograd 键
+    // DispatchKeySet(CPU) -> DispatchKeySet(CPU, ADInplaceOrView, AutogradCPU, AutocastCPU)
   }
 
   // Inference tensor doesn't have version counter.

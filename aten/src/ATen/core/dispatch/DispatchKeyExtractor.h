@@ -20,6 +20,7 @@ namespace impl {
 //
 // Unlike Tensor::key_set(), the value of this on a tensor can change depending
 // on TLS.
+// 与Tensor::key_set()不同的是，这个值可以根据TLS改变
 //
 // 注意:如果没有有效的分派键，将返回Undefined
 static inline DispatchKeySet computeDispatchKeySet(
@@ -143,9 +144,13 @@ public:
     dispatch_arg_indices_reverse_ = c10::utils::bitset();
   }
 
+  /**
+   * 通过stack里面的各种IValue，分析其中的dispatch key
+   */
   DispatchKeySet getDispatchKeySetBoxed(const torch::jit::Stack* stack) const {
     DispatchKeySet ks;
     dispatch_arg_indices_reverse_.for_each_set_bit([&] (size_t reverse_arg_index) {
+      // 遍历那些可能参数是Tensor的位置
       const auto& ivalue = torch::jit::peek(*stack, 0, reverse_arg_index + 1);
       if (C10_LIKELY(ivalue.isTensor())) {
         // NB: Take care not to introduce a refcount bump (there's

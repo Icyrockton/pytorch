@@ -446,6 +446,7 @@ class C10_API TypeMeta final {
 
   /**
    * Returns a TypeMeta object that corresponds to the typename T.
+   * 用法： auto dtype = caffe2::TypeMeta::Make<float>();
    */
   template <typename T>
   static TypeMeta Make() {

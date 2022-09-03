@@ -370,7 +370,7 @@ public:
   }
 
   /**
-   *  以装箱方式调用
+   *  以装箱方式调用  Stack = std::vector<c10::IValue>
    */
   void callBoxed(Stack* stack) const {
     c10::Dispatcher::singleton().callBoxed(*this, stack);
@@ -431,6 +431,8 @@ public:
   }
 
   // See [Note: Argument forwarding in the dispatcher] for why Args doesn't use &&
+  // 为什么有 redispatch 这东西？  因为call已经计算了DispatchKeySet ， call删除过一些DispatchKey后 得到了currentDispatchKeySet
+  // call计算的DispatchKeySet = 删除一些DispatchKey + currentDispatchKeySet
   C10_ALWAYS_INLINE Return redispatch(DispatchKeySet currentDispatchKeySet, Args... args) const {
     return c10::Dispatcher::singleton().redispatch<Return, Args...>(*this, currentDispatchKeySet, std::forward<Args>(args)...);
   }
@@ -562,9 +564,9 @@ inline Return Dispatcher::callWithDispatchKeySlowPath(const TypedOperatorHandle<
 template<class Return, class... Args>
 C10_ALWAYS_INLINE_UNLESS_MOBILE Return Dispatcher::call(const TypedOperatorHandle<Return(Args...)>& op, Args... args) const {
   detail::unused_arg_(args...);  // workaround for a false-positive warning about unused parameters in gcc 5
-  auto dispatchKeySet = op.operatorDef_->op.dispatchKeyExtractor()
+  auto dispatchKeySet = op.operatorDef_->op.dispatchKeyExtractor()  // 抽取dispatch_key
     .template getDispatchKeySetUnboxed<Args...>(args...);
-  const KernelFunction& kernel = op.operatorDef_->op.lookup(dispatchKeySet);
+  const KernelFunction& kernel = op.operatorDef_->op.lookup(dispatchKeySet);  // 找到对应的kernel
 #ifndef PYTORCH_DISABLE_PER_OP_PROFILING
   auto step_callbacks = at::getStepCallbacksUnlessEmpty(at::RecordScope::FUNCTION);
   if (C10_UNLIKELY(step_callbacks.has_value() && op.operatorDef_->op.isObserved())) {
@@ -591,8 +593,8 @@ inline Return Dispatcher::redispatch(const TypedOperatorHandle<Return (Args...)>
 inline void Dispatcher::callBoxed(const OperatorHandle& op, Stack* stack) const {
   // note: this doesn't need the mutex because write operations on the list keep iterators intact.
   const auto& entry = op.operatorDef_->op;
-  auto dispatchKeySet = entry.dispatchKeyExtractor().getDispatchKeySetBoxed(stack);
-  const auto& kernel = entry.lookup(dispatchKeySet);
+  auto dispatchKeySet = entry.dispatchKeyExtractor().getDispatchKeySetBoxed(stack); // 计算dispatch key
+  const auto& kernel = entry.lookup(dispatchKeySet);  // 根据dispatch key查找kernel
 #ifndef PYTORCH_DISABLE_PER_OP_PROFILING
   auto step_callbacks = at::getStepCallbacksUnlessEmpty(at::RecordScope::FUNCTION);
   if (C10_UNLIKELY(step_callbacks.has_value() && entry.isObserved())) {

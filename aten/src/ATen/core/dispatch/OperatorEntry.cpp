@@ -297,7 +297,7 @@ std::pair<const AnnotatedKernel&, const char*> OperatorEntry::computeDispatchTab
   bool has_backend_kernel =
     hasKernelForAnyDispatchKey(getBackendKeySetFromAutograd(dispatch_key)) ||
     // See Note [No Alias Keys in DispatchKeySet]
-    hasKernelForDispatchKey(DispatchKey::CompositeExplicitAutograd);
+    hasKernelForDispatchKey(DispatchKey::CompositeExplicitAutograd); // 如果有 CompositeExplicitAutograd 的kernel，不再设置 CompositeImplicitAutograd 的kernel了
 
   // 2.3. Use CompositeImplicitAutograd kernel if available. For autograd keys, we only use kernel from CompositeImplicitAutograd
   //      when there's no direct registration to its corresponding backend key or CompositeExplicitAutograd.
@@ -386,7 +386,7 @@ void OperatorEntry::updateDispatchTable_(const c10::Dispatcher& dispatcher, Disp
   // e.g. DispatchKey::CPU (which is composed of DispatchKey::Dense and BackendComponent::CPUBit).
   // However, there are some backends that should be included in this set that don't have the dense key set.
   // E.g. DispatchKey::Meta, DispatchKey::ORT.
-  if (c10::isBackendDispatchKey(dispatch_key)) {
+  if (c10::isBackendDispatchKey(dispatch_key)) {  // if语句里面 CPU -> AutogradCPU
     DispatchKey autograd_key = getAutogradKeyFromBackend(toBackendComponent(dispatch_key));
     updateDispatchTableEntry_(dispatcher, autograd_key);
   }
@@ -419,7 +419,7 @@ void OperatorEntry::updateDispatchTableFull_(const c10::Dispatcher& dispatcher) 
   // or CompositeImplicitAutograd alias key so that we don't break the support. Ideally isIncludedInAlias(Undefined, CompositeImplicitAutograd)
   // should return true, it returns false because Undefined cannot be represented in a DispatchKeySet.
   updateDispatchTable_(dispatcher, DispatchKey::Undefined);
-  for (auto k : DispatchKeySet(DispatchKeySet::FULL)) {
+  for (auto k : DispatchKeySet(DispatchKeySet::FULL)) { // 为什么要上面这行？  因为 DispatchKeySet(DispatchKeySet::FULL) 不包括 DispatchKey::Undefined
     updateDispatchTable_(dispatcher, k);
   }
 }

@@ -335,13 +335,13 @@ CompositeImplicitAutograd[alias]: impl_t_t :: (Tensor _0) -> Tensor _0 [ boxed u
             # m.def("foo", [](const Tensor & x) { return x })
             lambda m: m.def_name_t_t("foo"),
             # m.impl("foo", torch::kCPU, [](const Tensor & x) { return x })
-            # lambda m: m.impl_t_t("foo", "CPU", debug="fn_cpu"),
+            lambda m: m.impl_t_t("foo", "CPU", debug="fn_cpu"),
             # m.impl("foo", torch::kCUDA, [](const Tensor & x) { return x })
-            # lambda m: m.impl_t_t("foo", "XLA", debug="fn_xla"),
+            lambda m: m.impl_t_t("foo", "XLA", debug="fn_xla"),
             # m.impl("foo", torch::kAutograd, [](const Tensor & x) { return x })
-            # lambda m: m.impl_t_t("foo", "Autograd", debug="fn_autograd"),
+            lambda m: m.impl_t_t("foo", "Autograd", debug="fn_autograd"),
             # m.impl("foo", torch::kAutogradCPU, [](const Tensor & x) { return x })
-            # lambda m: m.impl_t_t("foo", "AutogradCPU", debug="fn_autogradcpu")
+            lambda m: m.impl_t_t("foo", "AutogradCPU", debug="fn_autogradcpu")
         ])
         state, table = result.state, result.table
         self.assertExpectedInline(state, '''\
@@ -357,8 +357,8 @@ CompositeImplicitAutograd[alias]: default_def_name_t_t :: (Tensor _0) -> Tensor 
 ''')
 
         # computed dispatch table is too big, so we only check on a few entries we're interested in.
+        print(table)
         extracted_table = extract_dispatch_table_with_keys(table, dispatch_keys_to_check)
-
         self.assertExpectedInline(extracted_table, '''\
 Undefined: default_def_name_t_t [math kernel]
 CPU: fn_cpu [kernel]
@@ -390,7 +390,6 @@ CompositeImplicitAutograd[alias]: default_def_name_t_t :: (Tensor _0) -> Tensor 
 
         # computed dispatch table is too big, so we only check on a few entries we're interested in.
         extracted_table = extract_dispatch_table_with_keys(table, dispatch_keys_to_check)
-
         self.assertExpectedInline(extracted_table, '''\
 Undefined: default_def_name_t_t [math kernel]
 CPU: impl_t_t [kernel]
@@ -584,7 +583,7 @@ alias analysis kind: FROM_SCHEMA
 CPU: fn_cpu :: (Tensor _0) -> Tensor _0 [ boxed unboxed ]
 CompositeExplicitAutograd[alias]: fn_defaultbackend :: (Tensor _0) -> Tensor _0 [ boxed unboxed ]
 ''')
-
+        print(table)
         # computed dispatch table is too big, so we only check on a few entries we're interested in.
         extracted_table = extract_dispatch_table_with_keys(table, dispatch_keys_to_check)
 

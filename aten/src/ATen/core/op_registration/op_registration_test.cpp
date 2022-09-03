@@ -49,18 +49,31 @@ private:
 };
 
 TEST(OperatorRegistrationTest,my_test){
-    bool called = false;
-  c10::RegisterOperators().op(
-        c10::RegisterOperators::options().schema("_test::dummy(Tensor dummy) -> ()")
-            .catchAllKernel<MockKernel>(&called)
-        );
+
+
+  bool called = false;
+  auto registrar = c10::RegisterOperators().op(c10::RegisterOperators::options().schema("_test::dummy").catchAllKernel<MockKernel>(&called));
 
   auto op = Dispatcher::singleton().findSchema({"_test::dummy", ""});
-//  std::cout << op->dumpState() << std::endl;
-//  std::cout << "hello" << std::endl;
-//  op->schema().dump();
-//  std::cout << op->schema().name() << std::endl;
-//  std::cout << op->schema().name() << std::endl;
+  if(op.has_value()){
+    std::cout << "find op " << std::endl;
+    std::cout << (*op).dumpComputedTable();
+    auto tensor = dummyTensor(DispatchKey::CPU,false);
+    std::cout << toString(tensor.unsafeGetTensorImpl()->key_set()) << std::endl;
+    tensor = dummyTensor(DispatchKey::CPU,true);
+    auto g = tensor.unsafeGetTensorImpl()->key_set() ;
+    std::cout << toString(tensor.unsafeGetTensorImpl()->key_set()) << std::endl;
+    /**
+     *  DispatchKeySet(CPU, ADInplaceOrView, AutocastCPU)
+     *  DispatchKeySet(CPU, ADInplaceOrView, AutogradCPU, AutocastCPU)
+     */
+    callOp(*op,tensor);
+    std::cout << called << std::endl;
+  }
+  else
+    std::cout << "not found" << std::endl;
+
+
 
 }
 
@@ -540,6 +553,7 @@ TEST(OperatorRegistrationTest, whenRegisteringAutogradKernelWithRegularKernel_th
     .kernel<decltype(autograd_kernel), &autograd_kernel>(DispatchKey::Autograd));
 
   auto op = Dispatcher::singleton().findSchema({"_test::dummy", ""});
+  std::cout << op->dumpComputedTable() << std::endl;
   ASSERT_TRUE(op.has_value());
 
   called_nonautograd = called_autograd = false;
@@ -775,6 +789,7 @@ TEST(OperatorRegistrationTest, givenTorchLibrary_whenAccessingCatchAllWithMismat
  * to test that a kernel with `Input` as input type and `Output` as output types,
  * when called with `input` fulfills `inputExpectation` inside the kernel, then
  * returns `output` and the returned value fulfills `outputExpectation`.
+ * 测试一个以“Input”为输入类型、“Output”为输出类型的内核，当调用“Input”时满足内核内部的“inputexpect”，然后返回“Output”，返回值满足“outputexpect”。
  *
  * `inputExpectation` and `outputExpectation` should be lambdas that run
  * googletest expect macros (or use other ways to assert the expectation is met).
@@ -1632,6 +1647,7 @@ TEST(NewOperatorRegistrationTest, dispatchWithCompositeExplicitAutogradAndCompos
   m.impl("fn", c10::DispatchKey::CompositeImplicitAutograd, [&](const Tensor& x) { math_called = true; return x; });
 
   auto op = Dispatcher::singleton().findSchema({"test::fn", ""});
+  std::cout << op->dumpComputedTable() << std::endl;
   ASSERT_TRUE(op.has_value());
 
   {
@@ -1715,7 +1731,7 @@ TEST(NewOperatorRegistrationTest, BackendOverridesCompositeExplicitAutogradKerne
   {
     default_called = backend_called = false;
     // AutogradCUDA is fallthrough, calls CUDA kernel
-    callOp(*op, dummyTensor(c10::DispatchKey::CUDA, /*requires_grad=*/true));
+    callOp(*op, dummyTensor(c10::DispatchKey::CUDA, /*requires_grad=*/true)); // DispatchKeySet(CUDA)
     ASSERT_TRUE(default_called);
     ASSERT_FALSE(backend_called);
   }
@@ -2064,6 +2080,7 @@ void cpu_kernel(Tensor) {
 }
 
 // autograd kernel that redispatches. Explicitly takes in and updates the DispatchKeySet
+// 重新分派的自适应内核。显式接收和更新DispatchKeySet
 void autograd_kernel_redispatching_with_DispatchKeySet(c10::DispatchKeySet ks, Tensor a) {
   called_kernel_autograd = true;
   auto op = Dispatcher::singleton().findSchema({"test::fn", ""});

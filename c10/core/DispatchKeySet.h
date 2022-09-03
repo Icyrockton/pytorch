@@ -820,6 +820,11 @@ C10_API DispatchKeySet getBackendKeySetFromAutograd(DispatchKey t);
 // returning an optional<DispatchKey>, or throwing. But it makes callers
 // responsible for either a) enforcing the invariant that only backend keys
 // be passed as arguments, or b) interpreting our return value carefully.
+// 返回一个DispatchKeySet，其中包含映射到后端的autograd相关键。
+// 对于给定的后端键，使用相关的autograd键。
+// 对于非后端键，使用AutogradOther作为默认值。
+//
+// 如果t是CPU 返回 DispatchKeySet(CPU, ADInplaceOrView, AutogradCPU)
 inline DispatchKeySet getAutogradRelatedKeySetFromBackend(BackendComponent t) {
   switch (t) {
     case BackendComponent::CPUBit:

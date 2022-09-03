@@ -63,7 +63,7 @@ DispatchKeySet getRuntimeDispatchKeySet(DispatchKey t) {
       // getRuntimeDispatchKeySet() expects to return a keyset of runtime
       // dispatch keys, like AutogradCPU, but that requires having backend bits.
       return autograd_dispatch_keyset |
-          DispatchKeySet(DispatchKeySet::RAW, full_backend_mask);
+          DispatchKeySet(DispatchKeySet::RAW, full_backend_mask);   // 遍历 AutogradOther,AutogradCPU,AutogradCUDA, .... ,
     case DispatchKey::CompositeImplicitAutograd:
       return math_dispatch_keyset;
     case DispatchKey::CompositeExplicitAutograd:

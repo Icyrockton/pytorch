@@ -340,6 +340,9 @@ std::vector<OperatorHandle> Dispatcher::findDanglingImpls() const {
   });
 }
 
+/**
+ * 找到有 DispatchKey k的所有op的名字
+ */
 std::vector<OperatorName> Dispatcher::getRegistrationsForDispatchKey(c10::optional<DispatchKey> k) const {
   return operatorLookupTable_.read([&] (const ska::flat_hash_map<OperatorName, OperatorHandle>& operatorLookupTable) -> std::vector<OperatorName> {
     std::vector<OperatorName> op_names;

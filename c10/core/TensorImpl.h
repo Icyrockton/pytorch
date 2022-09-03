@@ -480,8 +480,8 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    */
   TensorImpl(
       Storage&& storage,
-      DispatchKeySet,
-      const caffe2::TypeMeta data_type);
+      DispatchKeySet, // 分派键的集合
+      const caffe2::TypeMeta data_type);  // 数据类型  可以用 caffe2::TypeMeta::Make<Float>() 创建
 
   // See Note [Enum ImplType]
   TensorImpl(

@@ -125,7 +125,7 @@ public:
      * The kernel is only called for inputs matching the given dispatch key.
      * You can register multiple kernels for different dispatch keys.
      *
-     * 使用它来注册一个kernel实现为functor的operator。
+     * 使用它来注册一个kernel实现为仿函数的operator。
      * 只有匹配给定dispath key的输入才会调用kernel。您可以为不同的dispatch key注册多个kernel。
      *
      * Example:
@@ -144,6 +144,7 @@ public:
      *
      * The functor constructor can take arguments to configure the kernel.
      * The arguments are defined in the kernel registration.
+     * 仿函数的构造函数可以有参数来配置内核。例子:
      * Example:
      *
      * > namespace {
@@ -453,7 +454,7 @@ public:
 
     c10::optional<c10::either<OperatorName, FunctionSchema>> schemaOrName_;
 
-    std::vector<KernelRegistrationConfig> kernels;
+    std::vector<KernelRegistrationConfig> kernels;  // 保存的所有kernel
     optional<AliasAnalysisKind> aliasAnalysisKind_;
     friend class RegisterOperators;
     friend class Library;

@@ -43,8 +43,8 @@ struct C10_API StorageImpl : public c10::intrusive_ptr_target {
   StorageImpl(
       use_byte_size_t /*use_byte_size*/,
       SymInt size_bytes,
-      at::DataPtr data_ptr,
-      at::Allocator* allocator,
+      at::DataPtr data_ptr, // 实际的数据指针
+      at::Allocator* allocator, // 内存分配器
       bool resizable)
       : data_ptr_(std::move(data_ptr)),
         size_bytes_(size_bytes),
